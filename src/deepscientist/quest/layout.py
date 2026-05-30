@@ -18,6 +18,7 @@ QUEST_DIRECTORIES = (
     "artifacts/approvals",
     "artifacts/baselines",
     "artifacts/decisions",
+    "artifacts/evidence",
     "artifacts/graphs",
     "artifacts/ideas",
     "artifacts/milestones",

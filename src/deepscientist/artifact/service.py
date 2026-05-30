@@ -15390,6 +15390,354 @@ class ArtifactService:
                     items.append({"path": str(path), "name": path.name, "kind": folder.name, "workspace_root": str(root)})
         return items[-limit:]
 
+    # ========== Evidence Chain Tracking ==========
+
+    def record_evidence(
+        self,
+        quest_root: Path,
+        *,
+        title: str = "",
+        source_type: str = "",
+        source_location: str = "",
+        source_content_hash: str = "",
+        claim: str = "",
+        evidence_level: str = "supported",
+        tool_call_id: str = "",
+        tool_invocation: str = "",
+        source_excerpt: str = "",
+        claim_relation: str = "",
+        evidence_id: str | None = None,
+    ) -> dict:
+        """
+        Write an evidence detail file (Markdown + YAML frontmatter) and sync INDEX.md.
+
+        Write order (consistency guarantee):
+        1. Write the evidence detail file first
+        2. Append to events.jsonl
+        3. Update INDEX.md last (with fcntl.LOCK_EX)
+        """
+        evidence_root = ensure_dir(quest_root / "artifacts" / "evidence")
+
+        # Generate evidence_id
+        if not evidence_id:
+            run_id = _quest_run_id(quest_root)
+            existing = sorted(evidence_root.glob("EVD-*.md"))
+            seq = len(existing) + 1
+            evidence_id = f"EVD-{run_id[:8]}-{seq:03d}"
+
+        # Build frontmatter metadata
+        timestamp = utc_now()
+        metadata = {
+            "evidence_id": evidence_id,
+            "title": title,
+            "source_type": source_type,
+            "source_location": source_location,
+            "source_content_hash": source_content_hash,
+            "claim": claim,
+            "evidence_level": evidence_level,
+            "tool_call_id": tool_call_id,
+            "tool_invocation": tool_invocation,
+            "timestamp": timestamp,
+        }
+
+        # Build Markdown body
+        body_parts = [f"# {evidence_id}: {title or claim[:80]}", ""]
+        if source_excerpt:
+            body_parts.append("## Source Excerpt")
+            body_parts.append(f"> {source_excerpt}")
+            body_parts.append("")
+        if claim:
+            body_parts.append("## Claim")
+            body_parts.append(claim)
+            body_parts.append("")
+        if claim_relation:
+            body_parts.append("## Relationship to Claim")
+            body_parts.append(claim_relation)
+            body_parts.append("")
+
+        body = "\n".join(body_parts)
+
+        # Step 1: Write evidence detail file
+        evidence_path = evidence_root / f"{evidence_id}.md"
+        evidence_path.write_text(dump_markdown_document(metadata, body), encoding="utf-8")
+
+        # Step 2: Record to events.jsonl
+        append_jsonl(
+            quest_root / ".ds" / "events.jsonl",
+            {
+                "type": "evidence.recorded",
+                "evidence_id": evidence_id,
+                "source_type": source_type,
+                "evidence_level": evidence_level,
+                "claim": claim[:200],
+                "timestamp": timestamp,
+            },
+        )
+
+        # Step 3: Update INDEX.md
+        _upsert_index_row(
+            evidence_root,
+            quest_root=quest_root,
+            evidence_id=evidence_id,
+            title=title,
+            source_type=source_type,
+            source_location=source_location,
+            evidence_level=evidence_level,
+            summary=(claim or title)[:120],
+            file_path=str(evidence_path.relative_to(quest_root)),
+            timestamp=timestamp,
+        )
+
+        return {
+            "ok": True,
+            "evidence_id": evidence_id,
+            "path": str(evidence_path.relative_to(quest_root)),
+            "evidence_level": evidence_level,
+            "guidance": _format_evidence_guidance(evidence_id, evidence_level),
+        }
+
+    def update_evidence(
+        self,
+        quest_root: Path,
+        *,
+        evidence_id: str,
+        title: str | None = None,
+        source_type: str | None = None,
+        source_location: str | None = None,
+        source_content_hash: str | None = None,
+        claim: str | None = None,
+        evidence_level: str | None = None,
+        source_excerpt: str | None = None,
+        claim_relation: str | None = None,
+    ) -> dict:
+        """Update an existing evidence entry. Only non-None fields are updated."""
+        evidence_root = quest_root / "artifacts" / "evidence"
+        evidence_path = evidence_root / f"{evidence_id}.md"
+
+        if not evidence_path.exists():
+            return {"ok": False, "error": f"Evidence not found: {evidence_id}"}
+
+        metadata, existing_body = load_markdown_document(evidence_path)
+
+        # Update only the passed non-None fields
+        updatable = {
+            "title", "source_type", "source_location",
+            "source_content_hash", "claim", "evidence_level",
+        }
+        for key in updatable:
+            value = locals().get(key)
+            if value is not None:
+                metadata[key] = value
+
+        metadata["updated_at"] = utc_now()
+
+        # Rewrite body if source_excerpt or claim_relation updated
+        if source_excerpt is not None or claim_relation is not None:
+            body_parts = [f"# {evidence_id}: {metadata.get('title') or metadata.get('claim', '')[:80]}", ""]
+            excerpt = source_excerpt if source_excerpt is not None else ""
+            if excerpt:
+                body_parts.append("## Source Excerpt")
+                body_parts.append(f"> {excerpt}")
+                body_parts.append("")
+            claim_text = claim if claim is not None else metadata.get("claim", "")
+            if claim_text:
+                body_parts.append("## Claim")
+                body_parts.append(claim_text)
+                body_parts.append("")
+            relation = claim_relation if claim_relation is not None else ""
+            if relation:
+                body_parts.append("## Relationship to Claim")
+                body_parts.append(relation)
+                body_parts.append("")
+            body = "\n".join(body_parts)
+            evidence_path.write_text(dump_markdown_document(metadata, body), encoding="utf-8")
+
+        # Sync INDEX.md
+        _upsert_index_row(
+            evidence_root,
+            quest_root=quest_root,
+            evidence_id=evidence_id,
+            title=metadata.get("title", ""),
+            source_type=metadata.get("source_type", ""),
+            source_location=metadata.get("source_location", ""),
+            evidence_level=metadata.get("evidence_level", ""),
+            summary=(metadata.get("claim") or metadata.get("title", ""))[:120],
+            file_path=str(evidence_path.relative_to(quest_root)),
+            timestamp=metadata.get("updated_at", utc_now()),
+        )
+
+        # Record update event
+        append_jsonl(
+            quest_root / ".ds" / "events.jsonl",
+            {
+                "type": "evidence.updated",
+                "evidence_id": evidence_id,
+                "updated_fields": [
+                    k for k in updatable if locals().get(k) is not None
+                ],
+                "timestamp": utc_now(),
+            },
+        )
+
+        return {
+            "ok": True,
+            "evidence_id": evidence_id,
+            "path": str(evidence_path.relative_to(quest_root)),
+            "evidence_level": metadata.get("evidence_level", ""),
+            "guidance": _format_evidence_guidance(evidence_id, metadata.get("evidence_level", "")),
+        }
+
+    def list_evidence(
+        self,
+        quest_root: Path,
+        *,
+        evidence_level: str | None = None,
+        source_type: str | None = None,
+    ) -> dict:
+        """Parse INDEX.md and return evidence list. Supports filtering."""
+        index_path = quest_root / "artifacts" / "evidence" / "INDEX.md"
+        if not index_path.exists():
+            return {"ok": True, "evidence_records": [], "total": 0, "index_exists": False}
+
+        rows = _parse_index_table(index_path, section="Evidence Records")
+
+        # Global distribution (before filtering)
+        all_rows = rows
+        by_level_global = {
+            level: len([r for r in all_rows if r.get("Evidence Level") == level])
+            for level in ("supported", "inferred", "insufficient", "retracted")
+        }
+
+        if evidence_level:
+            rows = [r for r in rows if r.get("Evidence Level") == evidence_level]
+        if source_type:
+            rows = [r for r in rows if r.get("Source Type") == source_type]
+
+        return {
+            "ok": True,
+            "evidence_records": rows,
+            "total": len(rows),
+            "total_overall": len(all_rows),
+            "index_exists": True,
+            "by_level": by_level_global,
+        }
+
+    def get_evidence(self, quest_root: Path, evidence_id: str) -> dict:
+        """Read a single evidence detail file, returning frontmatter + body."""
+        evidence_path = quest_root / "artifacts" / "evidence" / f"{evidence_id}.md"
+        if not evidence_path.exists():
+            return {"ok": False, "error": f"Evidence not found: {evidence_id}"}
+
+        metadata, body = load_markdown_document(evidence_path)
+        return {
+            "ok": True,
+            "evidence_id": evidence_id,
+            "metadata": metadata,
+            "body": body,
+            "path": str(evidence_path.relative_to(quest_root)),
+        }
+
+    def verify_evidence_claims(
+        self,
+        quest_root: Path,
+        *,
+        agent_output_text: str,
+    ) -> dict:
+        """
+        Parse [EVD-xxx:level] references in agent output and cross-check against INDEX.md.
+
+        Returns verified, mismatched, missing, and unreferenced evidence.
+        """
+        index_path = quest_root / "artifacts" / "evidence" / "INDEX.md"
+        if not index_path.exists():
+            return {"ok": False, "error": "INDEX.md not found"}
+
+        # Extract all evidence references from agent output (skip code blocks)
+        ref_pattern = re.compile(r'\[(EVD-[^\]:]+)(?::([^\]]+))?\]')
+        code_block_pattern = re.compile(r'```')
+        agent_refs: dict[str, str | None] = {}
+
+        in_code_block = False
+        for raw_line in agent_output_text.split("\n"):
+            if code_block_pattern.search(raw_line):
+                in_code_block = not in_code_block
+                continue
+            if in_code_block:
+                continue
+            for match in ref_pattern.finditer(raw_line):
+                evd_id = match.group(1)
+                level = match.group(2) if match.group(2) else None
+                agent_refs[evd_id] = level
+
+        # Read INDEX.md evidence entries
+        index_rows = _parse_index_table(index_path, section="Evidence Records")
+        index_ids: dict[str, str] = {r.get("Evidence ID", ""): r.get("Evidence Level", "")
+                                       for r in index_rows if r.get("Evidence ID")}
+
+        # Cross-validate
+        verified = []
+        mismatched = []
+        missing = []
+        retracted_but_cited = []
+        for evd_id, claimed_level in agent_refs.items():
+            if evd_id in index_ids:
+                actual_level = index_ids[evd_id]
+                if actual_level == "retracted":
+                    retracted_but_cited.append({
+                        "evidence_id": evd_id,
+                        "claimed_level": claimed_level,
+                        "warning": "This evidence has been retracted and should not be cited.",
+                    })
+                elif claimed_level and claimed_level != actual_level:
+                    mismatched.append({
+                        "evidence_id": evd_id,
+                        "claimed_level": claimed_level,
+                        "actual_level": actual_level,
+                    })
+                else:
+                    verified.append(evd_id)
+            else:
+                missing.append(evd_id)
+
+        unreferenced = [eid for eid in index_ids if eid not in agent_refs]
+
+        total = len(agent_refs)
+        return {
+            "ok": True,
+            "total_references": total,
+            "verified": verified,
+            "verified_count": len(verified),
+            "mismatched": mismatched,
+            "mismatched_count": len(mismatched),
+            "missing": missing,
+            "missing_count": len(missing),
+            "retracted_but_cited": retracted_but_cited,
+            "retracted_but_cited_count": len(retracted_but_cited),
+            "unreferenced": unreferenced,
+            "unreferenced_count": len(unreferenced),
+            "verification_rate": f"{len(verified) / total * 100:.1f}%" if total else "N/A",
+        }
+
+    def index_snapshot(self, quest_root: Path) -> dict:
+        """Parse all three tables from INDEX.md and return structured JSON snapshot."""
+        index_path = quest_root / "artifacts" / "evidence" / "INDEX.md"
+        if not index_path.exists():
+            return {"ok": False, "error": "INDEX.md not found"}
+
+        evidence_records = _parse_index_table(index_path, section="Evidence Records")
+        input_materials = _parse_index_table(index_path, section="Input Materials")
+        tool_calls = _parse_index_table(index_path, section="Tool Call Records")
+
+        return {
+            "ok": True,
+            "evidence_records": evidence_records,
+            "evidence_total": len(evidence_records),
+            "input_materials": input_materials,
+            "input_materials_total": len(input_materials),
+            "tool_calls": tool_calls,
+            "tool_calls_total": len(tool_calls),
+        }
+
     def _build_record(self, quest_root: Path, payload: dict, *, workspace_root: Path | None = None) -> dict:
         timestamp = utc_now()
         kind = payload["kind"]
@@ -16103,3 +16451,251 @@ class ArtifactService:
             status="running" if runtime_state.get("active_run_id") else "active",
             stop_reason=None,
         )
+
+
+# ========== Evidence INDEX.md Helper Functions ==========
+
+def _ensure_index_md(evidence_root: Path) -> Path:
+    """Ensure INDEX.md exists; create skeleton if missing."""
+    index_path = evidence_root / "INDEX.md"
+    if not index_path.exists():
+        index_path.write_text(
+            "# Session File Index\n\n"
+            "> Auto-maintained by evidence-track skill. Last updated: \n\n"
+            "## Evidence Records\n"
+            "| Evidence ID | Title | Source Type | Source Location | Evidence Level | Summary | File Path | Timestamp |\n"
+            "|-------------|-------|-------------|-----------------|----------------|---------|-----------|-----------|\n\n"
+            "## Input Materials\n"
+            "| File ID | Title | Format | Source | Summary | File Path | Timestamp |\n"
+            "|---------|-------|--------|--------|---------|-----------|-----------|\n\n"
+            "## Tool Call Records\n"
+            "| Call ID | Tool | Mode | Summary | Exit Code | Log Path | Timestamp |\n"
+            "|---------|------|------|---------|-----------|----------|-----------|\n",
+            encoding="utf-8",
+        )
+    return index_path
+
+
+def _upsert_index_row(
+    evidence_root: Path,
+    *,
+    quest_root: Path,
+    evidence_id: str,
+    title: str,
+    source_type: str,
+    source_location: str,
+    evidence_level: str,
+    summary: str,
+    file_path: str,
+    timestamp: str,
+) -> None:
+    """Atomically insert or update a row in INDEX.md Evidence Records table (by evidence_id).
+
+    Uses fcntl.LOCK_EX for the read-upsert-write cycle on POSIX.
+    On non-POSIX (Windows), falls back to unlocked write_text.
+    """
+    index_path = _ensure_index_md(evidence_root)
+
+    new_row = {
+        "Evidence ID": evidence_id,
+        "Title": title[:80],
+        "Source Type": source_type,
+        "Source Location": source_location or "---",
+        "Evidence Level": evidence_level,
+        "Summary": summary[:120],
+        "File Path": file_path,
+        "Timestamp": timestamp,
+    }
+
+    import io
+
+    try:
+        import fcntl
+
+        with open(index_path, "r+", encoding="utf-8") as f:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            try:
+                existing_text = f.read()
+                rows = _parse_index_table_text(existing_text, section="Evidence Records")
+
+                # In-memory upsert
+                replaced = False
+                for i, row in enumerate(rows):
+                    if row.get("Evidence ID") == evidence_id:
+                        rows[i] = new_row
+                        replaced = True
+                        break
+                if not replaced:
+                    rows.append(new_row)
+
+                # Render and write back
+                new_text = _render_index_md_text(existing_text, evidence_records=rows, timestamp=timestamp)
+                f.seek(0)
+                f.truncate()
+                f.write(new_text)
+                f.flush()
+            finally:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+    except (ImportError, OSError, io.UnsupportedOperation):
+        # Non-POSIX fallback
+        existing_text = index_path.read_text(encoding="utf-8") if index_path.exists() else ""
+        rows = _parse_index_table_text(existing_text, section="Evidence Records")
+
+        replaced = False
+        for i, row in enumerate(rows):
+            if row.get("Evidence ID") == evidence_id:
+                rows[i] = new_row
+                replaced = True
+                break
+        if not replaced:
+            rows.append(new_row)
+
+        new_text = _render_index_md_text(existing_text, evidence_records=rows, timestamp=timestamp)
+        index_path.write_text(new_text, encoding="utf-8")
+
+        # Log dirty_index for audit trail
+        try:
+            append_jsonl(
+                quest_root / ".ds" / "events.jsonl",
+                {
+                    "type": "evidence.dirty_index",
+                    "evidence_id": evidence_id,
+                    "reason": "INDEX.md updated without fcntl lock --- concurrent writes possible",
+                    "timestamp": utc_now(),
+                },
+            )
+        except Exception:
+            pass
+
+
+def _render_index_md_text(
+    existing_text: str,
+    *,
+    evidence_records: list[dict[str, str]],
+    timestamp: str,
+) -> str:
+    """Re-render INDEX.md, replacing the Evidence Records table while preserving other sections."""
+    lines = existing_text.split("\n")
+
+    headers = [
+        "Evidence ID", "Title", "Source Type", "Source Location",
+        "Evidence Level", "Summary", "File Path", "Timestamp",
+    ]
+
+    # Build Evidence Records table
+    table_lines = ["## Evidence Records"]
+    table_lines.append("| " + " | ".join(headers) + " |")
+    table_lines.append("|" + "|".join("---" for _ in headers) + "|")
+    for row in evidence_records:
+        values = [str(row.get(h, "")) for h in headers]
+        table_lines.append("| " + " | ".join(values) + " |")
+    table_lines.append("")
+
+    # Replace or append Evidence Records section
+    skip_until_next_section = False
+    result_lines = []
+    replaced = False
+
+    for line in lines:
+        if line.startswith("## Evidence Records"):
+            skip_until_next_section = True
+            if not replaced:
+                result_lines.extend(table_lines)
+                replaced = True
+            continue
+        if skip_until_next_section and line.startswith("## "):
+            skip_until_next_section = False
+            result_lines.append(line)
+            continue
+        if skip_until_next_section:
+            continue
+        result_lines.append(line)
+
+    if not replaced:
+        result_lines.extend(table_lines)
+
+    # Update Last updated timestamp
+    final_text = "\n".join(result_lines)
+    final_text = re.sub(
+        r"(> Auto-maintained by evidence-track skill\. Last updated:).*",
+        rf"\1 {timestamp}",
+        final_text,
+    )
+
+    return final_text
+
+
+def _parse_index_table_text(text: str, *, section: str) -> list[dict[str, str]]:
+    """Parse a specific Markdown table section from INDEX.md text.
+
+    This is the pure-text variant used inside fcntl locks to avoid deadlocks.
+    """
+    lines = text.split("\n")
+
+    in_target_section = False
+    headers: list[str] = []
+    rows: list[dict[str, str]] = []
+
+    for line in lines:
+        if line.startswith(f"## {section}"):
+            in_target_section = True
+            continue
+        if in_target_section and line.startswith("## "):
+            break
+        if in_target_section and line.startswith("| ") and not headers:
+            headers = [h.strip() for h in line.split("|")[1:-1]]
+            continue
+        if in_target_section and line.startswith("|-"):
+            continue
+        if in_target_section and line.startswith("| ") and headers:
+            values = [v.strip() for v in line.split("|")[1:-1]]
+            if len(values) == len(headers):
+                rows.append(dict(zip(headers, values)))
+
+    return rows
+
+
+def _parse_index_table(index_path: Path, *, section: str) -> list[dict[str, str]]:
+    """Parse a specific Markdown table section from INDEX.md (file I/O convenience wrapper)."""
+    if not index_path.exists():
+        return []
+    return _parse_index_table_text(index_path.read_text(encoding="utf-8"), section=section)
+
+
+def _format_evidence_guidance(evidence_id: str, evidence_level: str) -> str:
+    """Generate guidance text after recording evidence."""
+    guidance_map = {
+        "supported": (
+            f"Evidence {evidence_id} recorded as [supported]. "
+            f"Reference in conclusions as [{evidence_id}:supported]."
+        ),
+        "inferred": (
+            f"Evidence {evidence_id} recorded as [inferred]. "
+            f"This means the conclusion is a reasonable extrapolation but not directly proven by the source. "
+            f"Reference as [{evidence_id}:inferred] and consider adding corroborating evidence."
+        ),
+        "insufficient": (
+            f"Evidence {evidence_id} recorded as [insufficient]. "
+            f"The source does not provide adequate support. "
+            f"Reference as [{evidence_id}:insufficient] and flag this gap to the user."
+        ),
+        "retracted": (
+            f"Evidence {evidence_id} has been retracted. "
+            f"The original record was found to be incorrect or misleading. "
+            f"Do NOT cite this evidence. Use [{evidence_id}:retracted] only to document why it was withdrawn."
+        ),
+    }
+    return guidance_map.get(evidence_level, f"Evidence {evidence_id} recorded.")
+
+
+def _quest_run_id(quest_root: Path) -> str:
+    """Get the current run_id from quest runtime_state, or fallback to path hash."""
+    try:
+        state = read_json(quest_root / ".ds" / "runtime_state.json", {})
+        run_id = str(state.get("last_run_id") or "").strip()
+        if run_id:
+            return run_id
+    except Exception:
+        pass
+    # Fallback: use quest_root path hash for cross-run traceability
+    return sha256_text(str(quest_root.resolve()))[:8]

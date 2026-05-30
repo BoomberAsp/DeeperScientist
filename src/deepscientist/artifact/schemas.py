@@ -11,6 +11,7 @@ ARTIFACT_DIRS = {
     "report": "reports",
     "approval": "approvals",
     "graph": "graphs",
+    "evidence": "evidence",
 }
 
 SCIENCE_ARTIFACT_DIR = "science"
@@ -149,6 +150,8 @@ def validate_artifact_payload(payload: dict) -> list[str]:
     kind = payload.get("kind")
     if is_science_kind(kind):
         return validate_science_payload(payload)
+    if kind == "evidence":
+        return validate_evidence_payload(payload)
     if kind not in ARTIFACT_DIRS:
         errors.append(f"Unknown artifact kind: {kind}")
         return errors
@@ -185,4 +188,62 @@ def guidance_for_kind(kind: str) -> str:
         return "Graph exported. Share the preview or attach it to a status response."
     if is_science_kind(kind):
         return "Science evidence recorded. Continue execution through bash_exec and keep claims linked to durable evidence paths."
+    if kind == "evidence":
+        return "Evidence recorded. Link to conclusions using [EVD-xxx:level] notation."
     return "Artifact stored. Refresh quest status and continue from the latest durable state."
+
+
+# Evidence Chain Tracking
+
+EVIDENCE_SOURCE_TYPES = {
+    "arxiv",
+    "pdf",
+    "url",
+    "code_output",
+    "tool_call",
+    "bash_log",
+    "memory_card",
+    "user_upload",
+    "experiment_result",
+    "dataset",
+    "literature_review",
+}
+
+EVIDENCE_LEVELS = {
+    "supported",
+    "inferred",
+    "insufficient",
+    "retracted",
+}
+
+EVIDENCE_ACTIONS = {
+    "record",
+    "update",
+    "verify",
+}
+
+
+def validate_evidence_payload(payload: dict) -> list[str]:
+    """Validate evidence entry payload."""
+    errors: list[str] = []
+    source_type = str(payload.get("source_type") or "").strip()
+    if source_type and source_type not in EVIDENCE_SOURCE_TYPES:
+        errors.append(
+            f"Unknown evidence source_type: {source_type}. "
+            f"Allowed: {', '.join(sorted(EVIDENCE_SOURCE_TYPES))}"
+        )
+    evidence_level = str(payload.get("evidence_level") or "").strip()
+    if evidence_level and evidence_level not in EVIDENCE_LEVELS:
+        errors.append(
+            f"Unknown evidence_level: {evidence_level}. "
+            f"Allowed: {', '.join(sorted(EVIDENCE_LEVELS))}"
+        )
+    claim = str(payload.get("claim") or "").strip()
+    if not claim:
+        errors.append("Evidence record requires `claim`.")
+    content_hash = str(payload.get("source_content_hash") or "").strip()
+    if content_hash and not content_hash.startswith("sha256:"):
+        errors.append(
+            "source_content_hash must use 'sha256:<hex>' format when provided."
+        )
+    return errors
