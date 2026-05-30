@@ -77,6 +77,7 @@ from .schemas import (
     guidance_for_kind,
     is_science_kind,
     validate_artifact_payload,
+    validate_evidence_payload,
 )
 
 _PAPER_VIEW_STORY_KEYS = ("problem", "gap", "method", "main_result", "scope_limit")
@@ -15412,10 +15413,23 @@ class ArtifactService:
         Write an evidence detail file (Markdown + YAML frontmatter) and sync INDEX.md.
 
         Write order (consistency guarantee):
-        1. Write the evidence detail file first
-        2. Append to events.jsonl
-        3. Update INDEX.md last (with fcntl.LOCK_EX)
+        1. Validate payload (reject early if source_excerpt missing for supported/inferred)
+        2. Write the evidence detail file
+        3. Append to events.jsonl
+        4. Update INDEX.md last (with fcntl.LOCK_EX)
         """
+        # Validate payload before touching any files
+        validation_payload = {
+            "source_type": source_type,
+            "evidence_level": evidence_level,
+            "claim": claim,
+            "source_content_hash": source_content_hash,
+            "source_excerpt": source_excerpt,
+        }
+        errors = validate_evidence_payload(validation_payload)
+        if errors:
+            return {"ok": False, "errors": errors}
+
         evidence_root = ensure_dir(quest_root / "artifacts" / "evidence")
 
         # Generate evidence_id

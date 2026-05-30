@@ -2580,7 +2580,10 @@ def build_artifact_server(context: McpContext) -> FastMCP:
             "Each entry links a claim to its source and assigns an evidence level: "
             "supported (source directly proves the claim), "
             "inferred (reasonable extrapolation but not directly proven), "
-            "insufficient (source is inadequate to support the claim)."
+            "insufficient (source is inadequate to support the claim). "
+            "IMPORTANT: When evidence_level is 'supported' or 'inferred', you MUST provide "
+            "source_excerpt — a verbatim quote from the source. This is required for "
+            "independent fact-checking. Without it, the record will be REJECTED."
         ),
     )
     def evidence_record(

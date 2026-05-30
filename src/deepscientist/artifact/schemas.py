@@ -241,6 +241,13 @@ def validate_evidence_payload(payload: dict) -> list[str]:
     claim = str(payload.get("claim") or "").strip()
     if not claim:
         errors.append("Evidence record requires `claim`.")
+    source_excerpt = str(payload.get("source_excerpt") or "").strip()
+    if evidence_level in {"supported", "inferred"} and not source_excerpt:
+        errors.append(
+            f"Evidence level '{evidence_level}' requires `source_excerpt` "
+            f"(verbatim quote from the source). This is mandatory for external "
+            f"fact-checking — without it, the claim cannot be independently verified."
+        )
     content_hash = str(payload.get("source_content_hash") or "").strip()
     if content_hash and not content_hash.startswith("sha256:"):
         errors.append(
