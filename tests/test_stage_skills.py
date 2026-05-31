@@ -5,7 +5,9 @@ from pathlib import Path
 
 from deepscientist.config import ConfigManager
 from deepscientist.home import ensure_home_layout, repo_root
+from deepscientist.memory import MEMORY_KINDS
 from deepscientist.prompts import PromptBuilder
+from deepscientist.quest.layout import QUEST_DIRECTORIES
 from deepscientist.quest import QuestService
 from deepscientist.skills import SkillInstaller, companion_skill_ids, discover_skill_bundles, stage_skill_ids
 
@@ -23,6 +25,7 @@ EXPECTED_STAGE_SKILLS = {
 }
 
 EXPECTED_COMPANION_SKILLS = {
+    "evidence-track",
     "paper-plot",
     "figure-polish",
     "intake-audit",
@@ -86,6 +89,21 @@ def test_skill_role_metadata_drives_stage_and_companion_catalogs() -> None:
     for skill_id in EXPECTED_STAGE_SKILLS | EXPECTED_COMPANION_SKILLS:
         text = (root / "src" / "skills" / skill_id / "SKILL.md").read_text(encoding="utf-8")
         assert "skill_role:" in text
+
+
+def test_evidence_track_companion_skill_and_memory_kind_registered() -> None:
+    root = repo_root()
+    path = root / "src" / "skills" / "evidence-track" / "SKILL.md"
+    assert path.exists()
+    text = path.read_text(encoding="utf-8")
+    assert "skill_role: companion" in text
+    assert "artifact.evidence_record" in text
+    assert "artifact.evidence_verify" in text
+    assert "source_excerpt" in text
+    assert "memory/evidence" in text
+    assert "evidence-track" in set(companion_skill_ids(root))
+    assert "evidence" in MEMORY_KINDS
+    assert "memory/evidence" in QUEST_DIRECTORIES
 
 
 def test_new_companion_skill_reference_files_exist() -> None:

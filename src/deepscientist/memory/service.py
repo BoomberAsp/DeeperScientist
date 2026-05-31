@@ -9,7 +9,7 @@ from ..config import ConfigManager
 from ..shared import append_jsonl, ensure_dir, generate_id, slugify, utc_now
 from .frontmatter import dump_markdown_document, load_markdown_document, load_markdown_document_from_text
 
-MEMORY_KINDS = ("papers", "ideas", "decisions", "episodes", "knowledge", "templates")
+MEMORY_KINDS = ("papers", "ideas", "decisions", "episodes", "evidence", "knowledge", "templates")
 MEMORY_READ_VISIBILITY_MODES = ("independent", "shared_across_quests")
 SHARED_MEMORY_DOCUMENT_PREFIX = "sharedmemory::"
 

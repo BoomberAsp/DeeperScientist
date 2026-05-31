@@ -75,6 +75,7 @@ def test_prompt_builder_includes_layered_runtime_context(temp_home: Path) -> Non
     assert "nature-data" in prompt
     assert "nature-figure" in prompt
     assert "nature-paper2ppt" in prompt
+    assert "evidence-track" in prompt
     assert "science" in prompt
     assert "science-artifacts" not in prompt
     assert "science-run" not in prompt
@@ -87,7 +88,26 @@ def test_prompt_builder_includes_layered_runtime_context(temp_home: Path) -> Non
     assert "plt.rcParams.update" in prompt
     assert "AutoFigure-Edit" in prompt
     assert len(prompt.splitlines()) < 1800
-    assert len(prompt) < 125000
+    assert len(prompt) < 130000
+
+
+def test_prompt_builder_includes_evidence_tracking_contract(temp_home: Path) -> None:
+    builder, snapshot = _make_builder(temp_home)
+    prompt = builder.build(
+        quest_id=snapshot["quest_id"],
+        skill_id="experiment",
+        user_message="Run a source-grounded comparison and cite the evidence.",
+        model="gpt-5.4",
+    )
+
+    assert "# Evidence Tracking Contract" in prompt
+    assert "artifact.evidence_record" in prompt
+    assert "artifact.evidence_list" in prompt
+    assert "artifact.evidence_verify" in prompt
+    assert "source_excerpt" in prompt
+    assert "[EVD-xxx:supported]" in prompt
+    assert "[NO_EVIDENCE]" in prompt
+    assert "stage_memory_rule: for `baseline`, prefer quest memory kinds [papers, evidence" in prompt
 
 
 def test_prompt_builder_enables_cross_quest_recall_only_for_shared_memory(temp_home: Path) -> None:

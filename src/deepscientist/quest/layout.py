@@ -34,6 +34,7 @@ QUEST_DIRECTORIES = (
     "userfiles",
     "tmp",
     "memory/decisions",
+    "memory/evidence",
     "memory/episodes",
     "memory/ideas",
     "memory/knowledge",
