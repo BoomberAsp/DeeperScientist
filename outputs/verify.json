@@ -1,0 +1,42 @@
+{
+  "ok": true,
+  "quest_root": "/home/jackpot/DeepScientist/quests/evidence-demo",
+  "evidence_total": 1,
+  "layer1": {
+    "ok": true,
+    "total_references": 1,
+    "verified": [
+      "EVD-0c8841da-001"
+    ],
+    "verified_count": 1,
+    "mismatched": [],
+    "mismatched_count": 0,
+    "missing": [],
+    "missing_count": 0,
+    "retracted_but_cited": [],
+    "retracted_but_cited_count": 0,
+    "unreferenced": []
+  },
+  "layer2": {
+    "backend": "heuristic",
+    "results": [
+      {
+        "evidence_id": "EVD-0c8841da-001",
+        "agent_label": "supported",
+        "nli_label": "entailment",
+        "score": 1.0,
+        "backend": "heuristic",
+        "rationale": "High token overlap and numeric values are covered by the excerpt."
+      }
+    ]
+  },
+  "metrics": {
+    "agent_nli_agreement_rate": 1.0,
+    "hallucination_rate": 0.0,
+    "unverifiable_rate": 0.0,
+    "citation_completeness": 1.0,
+    "claim_sentence_estimate": 1,
+    "evidence_citation_count": 1,
+    "no_evidence_count": 0
+  }
+}
