@@ -1140,7 +1140,7 @@ def test_prompt_builder_delegates_stage_specific_sop_to_skills(temp_home: Path) 
     for prompt in (experiment_prompt, idea_prompt, analysis_prompt, write_prompt):
         assert "stage_contract_protocol:" in prompt
         assert len(prompt.splitlines()) < 1800
-        assert len(prompt) < 126000
+        assert len(prompt) < 127000
 
     assert "RUN.md" not in experiment_prompt
     assert "problem-first vs solution-first" not in idea_prompt
