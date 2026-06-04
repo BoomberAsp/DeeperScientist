@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="500" height="300" font-family="Segoe UI, Arial, sans-serif">
+  <!-- Title -->
+  <text x="20" y="30" font-size="15" fill="#ffffff" font-weight="bold">Before vs After — Evidence Coverage</text>
+
+  <!-- Bar 1: Citation Completeness -->
+  <text x="20" y="72" font-size="12" fill="#8be9fd">Citation Completeness</text>
+  <!-- Before bar -->
+  <rect x="220" y="58" width="0" height="20" rx="3" fill="#ff5555"/>
+  <text x="225" y="73" font-size="11" fill="#ff5555">0%</text>
+  <!-- After bar -->
+  <rect x="220" y="84" width="125" height="20" rx="3" fill="#50fa7b"/>
+  <text x="350" y="99" font-size="11" fill="#50fa7b">50%</text>
+  <!-- Labels -->
+  <text x="230" y="73" font-size="10" fill="#6272a4">Before</text>
+  <text x="230" y="99" font-size="10" fill="#6272a4">After</text>
+  <!-- Arrow -->
+  <text x="380" y="99" font-size="13" fill="#f1fa8c">+50pp</text>
+
+  <!-- Bar 2: Evidence Citations -->
+  <text x="20" y="150" font-size="12" fill="#8be9fd">Evidence Citations</text>
+  <rect x="220" y="136" width="0" height="20" rx="3" fill="#ff5555"/>
+  <text x="225" y="151" font-size="11" fill="#ff5555">0</text>
+  <rect x="220" y="162" width="50" height="20" rx="3" fill="#50fa7b"/>
+  <text x="275" y="177" font-size="11" fill="#50fa7b">1</text>
+  <text x="230" y="151" font-size="10" fill="#6272a4">Before</text>
+  <text x="230" y="177" font-size="10" fill="#6272a4">After</text>
+  <text x="305" y="177" font-size="13" fill="#f1fa8c">+1</text>
+
+  <!-- Bar 3: [NO_EVIDENCE] Markers -->
+  <text x="20" y="228" font-size="12" fill="#8be9fd">[NO_EVIDENCE] Markers</text>
+  <rect x="220" y="214" width="0" height="20" rx="3" fill="#ff5555"/>
+  <text x="225" y="229" font-size="11" fill="#ff5555">0</text>
+  <rect x="220" y="240" width="50" height="20" rx="3" fill="#ffb86c"/>
+  <text x="275" y="255" font-size="11" fill="#ffb86c">1</text>
+  <text x="230" y="229" font-size="10" fill="#6272a4">Before</text>
+  <text x="230" y="255" font-size="10" fill="#6272a4">After</text>
+  <text x="305" y="255" font-size="13" fill="#f1fa8c">+1</text>
+
+  <!-- Key insight -->
+  <text x="20" y="285" font-size="10" fill="#6272a4">Claims with explicit evidence: 0/2 → 1/2. Unsupported claims now visible.</text>
+
+  <!-- Background -->
+  <rect x="0" y="0" width="500" height="300" rx="8" fill="#1e1e2e" opacity="0"/>
+</svg>
