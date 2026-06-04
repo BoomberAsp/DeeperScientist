@@ -24,7 +24,7 @@ def test_evidence_table_loads_records_and_renders_markdown(tmp_path: Path) -> No
 
 
 def test_verify_evidence_reports_layer1_and_heuristic_layer2(tmp_path: Path) -> None:
-    from verify_evidence import build_report
+    from deepscientist.artifact.evidence_verifier import build_report
 
     quest_root = tmp_path / "quest"
     evidence_id = "EVD-demo-001"
@@ -74,7 +74,7 @@ def _write_evidence_file(quest_root: Path, evidence_id: str) -> None:
 
 
 def test_api_env_file_and_model_override(tmp_path: Path) -> None:
-    from verify_evidence import _load_api_config
+    from deepscientist.artifact.evidence_verifier import _load_api_config
 
     env_file = tmp_path / ".env"
     env_file.write_text(
@@ -90,7 +90,7 @@ def test_api_env_file_and_model_override(tmp_path: Path) -> None:
 
 
 def test_parse_api_nli_response_accepts_json_fence() -> None:
-    from verify_evidence import _parse_api_nli_response
+    from deepscientist.artifact.evidence_verifier import _parse_api_nli_response
 
     payload = {
         "choices": [
@@ -109,7 +109,7 @@ def test_parse_api_nli_response_accepts_json_fence() -> None:
 
 def test_call_api_nli_uses_openai_compatible_payload() -> None:
     from deepscientist.artifact.evidence_table import EvidenceRecord
-    from verify_evidence import _call_api_nli
+    from deepscientist.artifact.evidence_verifier import _call_api_nli
 
     class FakeResponse:
         def raise_for_status(self) -> None:
@@ -172,7 +172,7 @@ def test_call_api_nli_uses_openai_compatible_payload() -> None:
 
 
 def test_cascade_records_heuristic_nli_and_skipped_api(tmp_path: Path, monkeypatch) -> None:
-    import verify_evidence as ve
+    import deepscientist.artifact.evidence_verifier as ve
 
     quest_root = tmp_path / "quest"
     evidence_id = "EVD-demo-001"
@@ -206,7 +206,7 @@ def test_cascade_records_heuristic_nli_and_skipped_api(tmp_path: Path, monkeypat
 
 
 def test_cascade_api_final_review_can_override_nli(tmp_path: Path, monkeypatch) -> None:
-    import verify_evidence as ve
+    import deepscientist.artifact.evidence_verifier as ve
 
     quest_root = tmp_path / "quest"
     evidence_id = "EVD-demo-001"
@@ -257,7 +257,7 @@ def test_cascade_api_final_review_can_override_nli(tmp_path: Path, monkeypatch) 
 def test_modelscope_model_source_uses_snapshot_download(monkeypatch, tmp_path: Path) -> None:
     import sys
     import types
-    import verify_evidence as ve
+    import deepscientist.artifact.evidence_verifier as ve
 
     calls = []
     module = types.ModuleType("modelscope")
@@ -276,3 +276,27 @@ def test_modelscope_model_source_uses_snapshot_download(monkeypatch, tmp_path: P
     )
     assert resolved == str(tmp_path / "cached-model")
     assert calls == ["demo/nli-model"]
+
+
+
+def test_artifact_service_integrated_evidence_verify_returns_user_visible_markdown(tmp_path: Path) -> None:
+    from deepscientist.artifact.service import ArtifactService
+
+    quest_root = tmp_path / "quest"
+    evidence_id = "EVD-demo-001"
+    _write_evidence_file(quest_root, evidence_id)
+    service = ArtifactService(tmp_path)
+
+    result = service.verify_evidence_claims(
+        quest_root,
+        agent_output_text=f"The model reaches 93.2% accuracy [{evidence_id}:supported].",
+        verification_mode="none",
+        write_artifacts=True,
+    )
+
+    assert result["ok"] is True
+    assert result["verified_count"] == 1
+    assert result["summary"]["verified_count"] == 1
+    assert "Evidence Verification Summary" in result["user_visible_markdown"]
+    assert result["artifact_paths"]["verify_md"].startswith("artifacts/evidence/verification/")
+    assert (quest_root / result["artifact_paths"]["verify_md"]).exists()

@@ -162,6 +162,8 @@ class TestEvidenceRecord:
         )
         result = service.verify_evidence_claims(
             quest_root,
+            verification_mode="none",
+            write_artifacts=False,
             agent_output_text="According to the data [EVD-nonexistent:supported]",
         )
         assert result["ok"] is True
@@ -180,6 +182,8 @@ class TestEvidenceRecord:
 
         result = service.verify_evidence_claims(
             quest_root,
+            verification_mode="none",
+            write_artifacts=False,
             agent_output_text=f"The data confirms this [{evd_id}:supported]",
         )
         assert result["ok"] is True

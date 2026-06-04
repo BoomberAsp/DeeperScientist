@@ -82,12 +82,29 @@ Do not place invented or placeholder ids in final answers.
 
 ## Verification Before Reports
 
-Before a report, summary, or handoff with multiple evidence-labeled claims:
+Before a report, summary, handoff, paper-facing section, or final answer with evidence-labeled claims:
 
 1. Call `artifact.evidence_list(...)` to inspect available evidence.
 2. Draft the answer with `[EVD-xxx:level]` labels.
-3. When correctness matters, call `artifact.evidence_verify(agent_output_text=...)`.
-4. Fix missing ids, mismatched levels, and any `retracted` evidence cited as support.
+3. Call `artifact.evidence_verify(agent_output_text=...)` before publishing the answer. Use the default integrated verifier unless the user explicitly asks for a lighter mode.
+4. Read the returned `summary`, `layer1`, `layer2`, `guidance`, and `user_visible_markdown`.
+5. Fix missing ids, mismatched levels, retracted citations, and semantic risk items such as `neutral`, `contradiction`, or `unverifiable` results for claims marked `supported`.
+6. Show the verification result to the user by including or summarizing `user_visible_markdown` in the final response.
+
+Default integrated verifier call shape:
+
+```text
+artifact.evidence_verify(
+    agent_output_text="full draft answer with [EVD-xxx:level] labels",
+    verification_mode="cascade",
+    model_source="modelscope",
+    modelscope_model="cross-encoder/nli-roberta-base",
+    cascade_api=false,
+    write_artifacts=true,
+)
+```
+
+Only set `cascade_api=true` when the user or task explicitly wants the final remote LLM API review.
 
 ## INDEX.md Boundary
 

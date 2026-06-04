@@ -362,3 +362,94 @@ conda run -n agent python -m pytest tests/test_evidence_validation_c.py tests/te
 - 外部 API 的判断质量取决于所选模型和 prompt。
 - `citation_completeness` 是基于报告句子的启发式估计，不是严格自然语言 claim parser。
 - 如果 `source_excerpt` 不是来源原文逐字摘录，外部 NLI 的判断会失真；这也是 B 部分强调 `source_excerpt` 必须逐字引用的原因。
+
+
+## 10. MCP 工具集成：`artifact.evidence_verify`
+
+C 部分验证逻辑已经整合进 MCP 工具 `artifact.evidence_verify`。该工具替换原先只占位/只做引用格式检查的版本，不新增 MCP namespace，仍然属于 `artifact`。
+
+### 10.1 什么时候调用
+
+Agent 应在以下场景主动调用：
+
+- 准备发布研究总结、handoff、paper-facing section 或 final answer 前。
+- 输出中包含 `[EVD-xxx:level]` 时。
+- 用户要求“验证证据”“检查幻觉”“检查引用是否支持结论”时。
+- evidence 被更新或 retracted 后，需要重新检查报告时。
+
+不建议在普通闲聊或没有事实 claim 的短回复里调用。
+
+### 10.2 推荐调用方式
+
+```text
+artifact.evidence_verify(
+    agent_output_text="完整待发布报告文本，包含 [EVD-xxx:level]",
+    verification_mode="cascade",
+    include_evidence_table=true,
+    cascade_api=false,
+    model_source="modelscope",
+    modelscope_model="cross-encoder/nli-roberta-base",
+    env_file=".env",
+    write_artifacts=true,
+    artifact_prefix="evidence_verify",
+)
+```
+
+默认确认规则：
+
+- 工具名继续叫 `artifact.evidence_verify`。
+- 默认 `verification_mode="cascade"`。
+- 默认 `model_source="modelscope"`。
+- 默认不调用 LLM API；只有 `cascade_api=true` 才调用。
+- 默认把验证报告写入 `artifacts/evidence/verification/`。
+- Agent 必须把 `user_visible_markdown` 展示或摘要给用户。
+
+### 10.3 工具返回内容
+
+工具会返回结构化结果，核心字段包括：
+
+```json
+{
+  "ok": true,
+  "summary": {
+    "evidence_total": 1,
+    "total_references": 1,
+    "verified_count": 1,
+    "mismatched_count": 0,
+    "missing_count": 0,
+    "retracted_but_cited_count": 0,
+    "hallucination_rate": 0.0,
+    "citation_completeness": 1.0,
+    "unverifiable_rate": 0.0
+  },
+  "layer1": {},
+  "layer2": {},
+  "metrics": {},
+  "evidence_table": {},
+  "user_visible_markdown": "## Evidence Verification Summary\n...",
+  "artifact_paths": {
+    "verify_md": "artifacts/evidence/verification/evidence_verify-xxxx.md",
+    "verify_json": "artifacts/evidence/verification/evidence_verify-xxxx.json",
+    "evidence_table_md": "artifacts/evidence/verification/evidence_verify-xxxx-evidence-table.md"
+  },
+  "guidance": "Evidence verification passed at the configured level. Show user_visible_markdown to the user and proceed."
+}
+```
+
+为兼容旧调用，Layer 1 的字段也会保留在顶层，例如：
+
+- `verified`
+- `mismatched`
+- `missing`
+- `retracted_but_cited`
+- `unreferenced`
+- `verification_rate`
+
+### 10.4 Agent 拿到返回后应该怎么做
+
+- 如果 `summary.missing_count > 0`：不要发布，修正不存在或伪造的 EVD id。
+- 如果 `summary.mismatched_count > 0`：不要发布，修正 `[EVD-xxx:level]` 或更新 evidence。
+- 如果 `summary.retracted_but_cited_count > 0`：不要把 retracted evidence 当作支持证据引用。
+- 如果 Layer 2 中 `supported` claim 得到 `neutral`、`contradiction` 或 `unverifiable`：降级结论、补证据，或改成 `[NO_EVIDENCE]`。
+- 如果 `citation_completeness` 太低：补充 evidence 标注，或明确哪些结论无证据。
+- 最终回复用户时，展示或摘要 `user_visible_markdown`。
