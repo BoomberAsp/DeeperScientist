@@ -18,15 +18,35 @@
     "unreferenced": []
   },
   "layer2": {
-    "backend": "heuristic",
+    "backend": "cascade",
     "results": [
       {
         "evidence_id": "EVD-0c8841da-001",
         "agent_label": "supported",
         "nli_label": "entailment",
         "score": 1.0,
-        "backend": "heuristic",
-        "rationale": "High token overlap and numeric values are covered by the excerpt."
+        "backend": "cascade",
+        "rationale": "heuristic=entailment (1.000); nli=entailment (0.990); llm_api=entailment (1.000). Final label selected from api.",
+        "stages": {
+          "heuristic": {
+            "label": "entailment",
+            "score": 1.0,
+            "backend": "heuristic",
+            "rationale": "High token overlap and numeric values are covered by the excerpt."
+          },
+          "nli": {
+            "label": "entailment",
+            "score": 0.9901216626167297,
+            "backend": "transformers",
+            "rationale": "Best model label: entailment"
+          },
+          "llm_api": {
+            "label": "entailment",
+            "score": 1.0,
+            "backend": "api",
+            "rationale": "The source excerpt is identical to the claim, explicitly stating that the model reaches 93.2% accuracy."
+          }
+        }
       }
     ]
   },

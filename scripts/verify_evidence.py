@@ -37,6 +37,7 @@ class NliResult:
     score: float
     backend: str
     rationale: str
+    stages: dict[str, Any] | None = None
 
 
 def strip_code_blocks(text: str) -> str:
@@ -109,6 +110,9 @@ def run_nli(
     backend: str,
     model: str | None = None,
     env_file: Path | None = None,
+    cascade_api: bool = False,
+    model_source: str = "huggingface",
+    modelscope_model: str | None = None,
 ) -> list[NliResult]:
     if backend == "none":
         return [
@@ -123,54 +127,185 @@ def run_nli(
             for record in records
         ]
     if backend == "transformers":
-        return _run_transformers_nli(records, model=model)
+        return _run_transformers_nli(records, model=model, model_source=model_source, modelscope_model=modelscope_model)
     if backend == "api":
         return _run_api_nli(records, model=model, env_file=env_file)
+    if backend == "cascade":
+        return _run_cascade_nli(records, model=model, env_file=env_file, cascade_api=cascade_api, model_source=model_source, modelscope_model=modelscope_model)
     return [_heuristic_nli(record) for record in records]
 
 
-def _run_transformers_nli(records: list[EvidenceRecord], *, model: str | None) -> list[NliResult]:
-    try:
-        from transformers import pipeline
-    except ModuleNotFoundError:
-        return [
+def _run_cascade_nli(
+    records: list[EvidenceRecord],
+    *,
+    model: str | None,
+    env_file: Path | None,
+    cascade_api: bool,
+    model_source: str = "huggingface",
+    modelscope_model: str | None = None,
+) -> list[NliResult]:
+    heuristic_results = [_heuristic_nli(record) for record in records]
+    transformer_results = _run_transformers_nli(records, model=model, model_source=model_source, modelscope_model=modelscope_model)
+    api_results = _run_api_nli(records, model=model, env_file=env_file) if cascade_api else [
+        NliResult(
+            evidence_id=record.evidence_id,
+            agent_label=record.evidence_level,
+            nli_label="skipped",
+            score=0.0,
+            backend="api",
+            rationale="LLM API final review disabled; pass --cascade-api to enable it.",
+        )
+        for record in records
+    ]
+
+    merged: list[NliResult] = []
+    for record, heuristic, transformer, api in zip(records, heuristic_results, transformer_results, api_results):
+        final = _choose_cascade_final(heuristic=heuristic, transformer=transformer, api=api)
+        stages = {
+            "heuristic": _stage_payload(heuristic),
+            "nli": _stage_payload(transformer),
+            "llm_api": _stage_payload(api),
+        }
+        merged.append(
             NliResult(
                 evidence_id=record.evidence_id,
                 agent_label=record.evidence_level,
-                nli_label="skipped",
-                score=0.0,
-                backend="transformers",
-                rationale="Python package `transformers` is not installed; rerun with --nli-backend heuristic or install the model dependencies.",
+                nli_label=final.nli_label,
+                score=final.score,
+                backend="cascade",
+                rationale=_cascade_rationale(heuristic=heuristic, transformer=transformer, api=api, final=final),
+                stages=stages,
             )
-            for record in records
-        ]
+        )
+    return merged
 
-    classifier = pipeline(
-        "text-classification",
-        model=model or "MoritzLaurer/deberta-v3-base-mnli-fever-anli",
-        top_k=None,
-    )
+
+def _choose_cascade_final(*, heuristic: NliResult, transformer: NliResult, api: NliResult) -> NliResult:
+    if api.nli_label not in {"skipped"}:
+        return api
+    if transformer.nli_label not in {"skipped"}:
+        return transformer
+    return heuristic
+
+
+def _stage_payload(result: NliResult) -> dict[str, Any]:
+    return {
+        "label": result.nli_label,
+        "score": result.score,
+        "backend": result.backend,
+        "rationale": result.rationale,
+    }
+
+
+def _cascade_rationale(*, heuristic: NliResult, transformer: NliResult, api: NliResult, final: NliResult) -> str:
+    parts = [
+        f"heuristic={heuristic.nli_label} ({heuristic.score:.3f})",
+        f"nli={transformer.nli_label} ({transformer.score:.3f})",
+        f"llm_api={api.nli_label} ({api.score:.3f})",
+    ]
+    return "; ".join(parts) + f". Final label selected from {final.backend}."
+
+
+def _run_transformers_nli(
+    records: list[EvidenceRecord],
+    *,
+    model: str | None,
+    model_source: str = "huggingface",
+    modelscope_model: str | None = None,
+) -> list[NliResult]:
+    try:
+        from transformers import pipeline
+    except ModuleNotFoundError:
+        return _skipped_nli_results(
+            records,
+            backend="transformers",
+            rationale="Python package `transformers` is not installed; rerun with --nli-backend heuristic or install the model dependencies.",
+        )
+
+    try:
+        resolved_model = _resolve_transformers_model(
+            model=model,
+            model_source=model_source,
+            modelscope_model=modelscope_model,
+        )
+        classifier = pipeline(
+            "text-classification",
+            model=resolved_model,
+            top_k=None,
+        )
+    except Exception as exc:
+        return _skipped_nli_results(
+            records,
+            backend="transformers",
+            rationale=f"Transformers NLI model could not be loaded from {model_source}: {exc}",
+        )
     results: list[NliResult] = []
     for record in records:
         if not record.source_excerpt.strip():
             results.append(_unverifiable(record, "source_excerpt is missing.", backend="transformers"))
             continue
-        raw = classifier({"text": record.source_excerpt, "text_pair": record.claim})
-        labels = raw[0] if raw and isinstance(raw[0], list) else raw
-        best = max(labels, key=lambda item: float(item.get("score", 0.0)))
-        label = _normalize_nli_label(str(best.get("label") or "neutral"))
-        results.append(
-            NliResult(
-                evidence_id=record.evidence_id,
-                agent_label=record.evidence_level,
-                nli_label=label,
-                score=float(best.get("score", 0.0)),
-                backend="transformers",
-                rationale=f"Best model label: {best.get('label')}",
+        try:
+            raw = classifier({"text": record.source_excerpt, "text_pair": record.claim})
+            labels = raw[0] if raw and isinstance(raw[0], list) else raw
+            best = max(labels, key=lambda item: float(item.get("score", 0.0)))
+            label = _normalize_nli_label(str(best.get("label") or "neutral"))
+            results.append(
+                NliResult(
+                    evidence_id=record.evidence_id,
+                    agent_label=record.evidence_level,
+                    nli_label=label,
+                    score=float(best.get("score", 0.0)),
+                    backend="transformers",
+                    rationale=f"Best model label: {best.get('label')}",
+                )
             )
-        )
+        except Exception as exc:
+            results.append(
+                NliResult(
+                    evidence_id=record.evidence_id,
+                    agent_label=record.evidence_level,
+                    nli_label="skipped",
+                    score=0.0,
+                    backend="transformers",
+                    rationale=f"Transformers NLI inference failed: {exc}",
+                )
+            )
     return results
 
+
+
+def _resolve_transformers_model(*, model: str | None, model_source: str, modelscope_model: str | None) -> str:
+    if model_source == "modelscope":
+        return _download_modelscope_model(model=model, modelscope_model=modelscope_model)
+    return model or os.environ.get("NLI_TRANSFORMERS_MODEL") or "MoritzLaurer/deberta-v3-base-mnli-fever-anli"
+
+
+def _download_modelscope_model(*, model: str | None, modelscope_model: str | None) -> str:
+    model_id = (
+        modelscope_model
+        or os.environ.get("NLI_MODELSCOPE_MODEL")
+        or model
+        or "cross-encoder/nli-roberta-base"
+    )
+    try:
+        from modelscope import snapshot_download
+    except ModuleNotFoundError as exc:
+        raise RuntimeError("Python package `modelscope` is not installed. Install it with `pip install modelscope`.") from exc
+    return str(snapshot_download(model_id))
+
+
+def _skipped_nli_results(records: list[EvidenceRecord], *, backend: str, rationale: str) -> list[NliResult]:
+    return [
+        NliResult(
+            evidence_id=record.evidence_id,
+            agent_label=record.evidence_level,
+            nli_label="skipped",
+            score=0.0,
+            backend=backend,
+            rationale=rationale,
+        )
+        for record in records
+    ]
 
 def _run_api_nli(records: list[EvidenceRecord], *, model: str | None, env_file: Path | None) -> list[NliResult]:
     config = _load_api_config(env_file=env_file, model=model)
@@ -394,10 +529,21 @@ def build_report(
     backend: str,
     model: str | None = None,
     env_file: Path | None = None,
+    cascade_api: bool = False,
+    model_source: str = "huggingface",
+    modelscope_model: str | None = None,
 ) -> dict[str, Any]:
     records = load_evidence_records(quest_root)
     layer1 = layer1_verify(report_text, records)
-    nli_results = run_nli(records, backend=backend, model=model, env_file=env_file)
+    nli_results = run_nli(
+        records,
+        backend=backend,
+        model=model,
+        env_file=env_file,
+        cascade_api=cascade_api,
+        model_source=model_source,
+        modelscope_model=modelscope_model,
+    )
     return {
         "ok": True,
         "quest_root": str(quest_root),
@@ -466,9 +612,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--quest-root", required=True, type=Path)
     parser.add_argument("--report", type=Path, help="Markdown/text report containing [EVD-xxx:level] references.")
     parser.add_argument("--text", default="", help="Inline report text. Used when --report is omitted.")
-    parser.add_argument("--nli-backend", choices=("heuristic", "transformers", "api", "none"), default="heuristic")
-    parser.add_argument("--model", default=None, help="Model override. HuggingFace model for transformers; API model for api.")
-    parser.add_argument("--env-file", type=Path, default=REPO_ROOT / ".env", help="Environment file for --nli-backend api.")
+    parser.add_argument("--nli-backend", choices=("cascade", "heuristic", "transformers", "api", "none"), default="cascade")
+    parser.add_argument("--model", default=None, help="Model override. HuggingFace model for transformers/cascade NLI; API model for api/cascade API.")
+    parser.add_argument("--model-source", choices=("huggingface", "modelscope"), default="huggingface", help="Where transformers/cascade should load the NLI model from.")
+    parser.add_argument("--modelscope-model", default=None, help="ModelScope model id for --model-source modelscope. Defaults to --model or NLI_MODELSCOPE_MODEL.")
+    parser.add_argument("--env-file", type=Path, default=REPO_ROOT / ".env", help="Environment file for --nli-backend api or --cascade-api.")
+    parser.add_argument("--cascade-api", action="store_true", help="With --nli-backend cascade, run the final optional LLM API review after heuristic and NLI stages.")
     parser.add_argument("--json-out", type=Path)
     parser.add_argument("--md-out", type=Path)
     args = parser.parse_args(argv)
@@ -480,6 +629,9 @@ def main(argv: list[str] | None = None) -> int:
         backend=args.nli_backend,
         model=args.model,
         env_file=args.env_file,
+        cascade_api=args.cascade_api,
+        model_source=args.model_source,
+        modelscope_model=args.modelscope_model,
     )
     if args.json_out:
         args.json_out.parent.mkdir(parents=True, exist_ok=True)

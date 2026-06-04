@@ -168,3 +168,111 @@ def test_call_api_nli_uses_openai_compatible_payload() -> None:
     assert result.backend == "api"
     assert result.nli_label == "entailment"
     assert result.score == 0.88
+
+
+
+def test_cascade_records_heuristic_nli_and_skipped_api(tmp_path: Path, monkeypatch) -> None:
+    import verify_evidence as ve
+
+    quest_root = tmp_path / "quest"
+    evidence_id = "EVD-demo-001"
+    _write_evidence_file(quest_root, evidence_id)
+
+    def fake_transformers(records, *, model, model_source="huggingface", modelscope_model=None):
+        return [
+            ve.NliResult(
+                evidence_id=record.evidence_id,
+                agent_label=record.evidence_level,
+                nli_label="neutral",
+                score=0.77,
+                backend="transformers",
+                rationale="fake nli uncertainty",
+            )
+            for record in records
+        ]
+
+    monkeypatch.setattr(ve, "_run_transformers_nli", fake_transformers)
+    payload = ve.build_report(
+        quest_root,
+        f"The model reaches 93.2% accuracy [{evidence_id}:supported].",
+        backend="cascade",
+    )
+    result = payload["layer2"]["results"][0]
+    assert result["backend"] == "cascade"
+    assert result["nli_label"] == "neutral"
+    assert result["stages"]["heuristic"]["label"] == "entailment"
+    assert result["stages"]["nli"]["label"] == "neutral"
+    assert result["stages"]["llm_api"]["label"] == "skipped"
+
+
+def test_cascade_api_final_review_can_override_nli(tmp_path: Path, monkeypatch) -> None:
+    import verify_evidence as ve
+
+    quest_root = tmp_path / "quest"
+    evidence_id = "EVD-demo-001"
+    _write_evidence_file(quest_root, evidence_id)
+
+    def fake_transformers(records, *, model, model_source="huggingface", modelscope_model=None):
+        return [
+            ve.NliResult(
+                evidence_id=record.evidence_id,
+                agent_label=record.evidence_level,
+                nli_label="entailment",
+                score=0.83,
+                backend="transformers",
+                rationale="fake nli support",
+            )
+            for record in records
+        ]
+
+    def fake_api(records, *, model, env_file):
+        return [
+            ve.NliResult(
+                evidence_id=record.evidence_id,
+                agent_label=record.evidence_level,
+                nli_label="contradiction",
+                score=0.92,
+                backend="api",
+                rationale="fake api contradiction",
+            )
+            for record in records
+        ]
+
+    monkeypatch.setattr(ve, "_run_transformers_nli", fake_transformers)
+    monkeypatch.setattr(ve, "_run_api_nli", fake_api)
+    payload = ve.build_report(
+        quest_root,
+        f"The model reaches 93.2% accuracy [{evidence_id}:supported].",
+        backend="cascade",
+        cascade_api=True,
+    )
+    result = payload["layer2"]["results"][0]
+    assert result["nli_label"] == "contradiction"
+    assert result["score"] == 0.92
+    assert result["stages"]["llm_api"]["label"] == "contradiction"
+    assert "Final label selected from api" in result["rationale"]
+
+
+
+def test_modelscope_model_source_uses_snapshot_download(monkeypatch, tmp_path: Path) -> None:
+    import sys
+    import types
+    import verify_evidence as ve
+
+    calls = []
+    module = types.ModuleType("modelscope")
+
+    def fake_snapshot_download(model_id: str) -> str:
+        calls.append(model_id)
+        return str(tmp_path / "cached-model")
+
+    module.snapshot_download = fake_snapshot_download
+    monkeypatch.setitem(sys.modules, "modelscope", module)
+
+    resolved = ve._resolve_transformers_model(
+        model=None,
+        model_source="modelscope",
+        modelscope_model="demo/nli-model",
+    )
+    assert resolved == str(tmp_path / "cached-model")
+    assert calls == ["demo/nli-model"]

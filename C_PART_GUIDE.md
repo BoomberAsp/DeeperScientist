@@ -57,14 +57,23 @@ tests/test_evidence_validation_c.py
 
 作用：生成双层验证报告。
 
-支持的 NLI 后端：
+支持的验证后端：
 
 | 后端 | 命令值 | 用途 |
 |---|---|---|
-| 启发式本地验证 | `heuristic` | 默认选项，快速、无 API、适合联调 |
-| HuggingFace 本地模型 | `transformers` | 可选，下载本地模型后运行 |
-| 外部 API | `api` | 推荐展示方案，使用 OpenAI-compatible chat completions |
+| 级联验证 | `cascade` | 默认流程：先 heuristic，再 NLI 模型，最后可选 LLM API 复核 |
+| 启发式本地验证 | `heuristic` | 只跑本地规则，快速、无 API、适合联调 |
+| HuggingFace 本地 NLI 模型 | `transformers` | 只跑本地 NLI 模型 |
+| 外部 LLM API | `api` | 只跑 OpenAI-compatible chat completions API |
 | 跳过语义验证 | `none` | 只跑 Layer 1 |
+
+默认推荐使用 `cascade`：
+
+```text
+heuristic 本地快速筛查
+  -> transformers NLI 模型验证
+  -> 可选 LLM API 最终复核（加 --cascade-api 才会调用）
+```
 
 ### 2.3 `before_after_compare.py`
 
@@ -134,10 +143,16 @@ conda run -n agent python -m pip install -e . pytest
 
 如果使用外部 API，项目依赖里的 `httpx` 已经足够。
 
-如果使用 HuggingFace 本地模型，需要额外安装：
+如果使用本地 NLI 模型，需要额外安装：
 
 ```bash
 conda run -n agent python -m pip install torch transformers sentencepiece
+```
+
+如果 HuggingFace 下载超时，可以改用 ModelScope 下载模型：
+
+```bash
+conda run -n agent python -m pip install modelscope
 ```
 
 
@@ -205,19 +220,52 @@ PYTHONPATH=src:scripts conda run -n agent python -m deepscientist.artifact.evide
   --json-out outputs/evidence_table.json
 ```
 
-### 5.2 使用外部 API 做双层验证
+### 5.2 使用默认级联流程做双层验证
+
+默认级联流程会先做 heuristic，再做 NLI 模型验证。LLM API 是可选最终复核，只有加 `--cascade-api` 才会调用。
+
+不调用 LLM API，默认从 HuggingFace 加载 NLI 模型：
 
 ```bash
 PYTHONPATH=src:scripts conda run -n agent python scripts/verify_evidence.py \
   --quest-root /home/jackpot/DeepScientist/quests/evidence-demo \
   --report outputs/report.md \
-  --nli-backend api \
+  --nli-backend cascade \
+  --json-out outputs/verify.json \
+  --md-out outputs/verify.md
+```
+
+如果 HuggingFace 连接超时，改用 ModelScope 下载 NLI 模型：
+
+```bash
+PYTHONPATH=src:scripts conda run -n agent python scripts/verify_evidence.py \
+  --quest-root /home/jackpot/DeepScientist/quests/evidence-demo \
+  --report outputs/report.md \
+  --nli-backend cascade \
+  --model-source modelscope \
+  --modelscope-model cross-encoder/nli-roberta-base \
+  --json-out outputs/verify.json \
+  --md-out outputs/verify.md
+```
+
+如果该 ModelScope 模型 ID 不可用，请在 ModelScope 网站上选择一个兼容 transformers 的 NLI/MNLI 模型，并把 `--modelscope-model` 改成对应 ID。
+
+启用 LLM API 最终复核：
+
+```bash
+PYTHONPATH=src:scripts conda run -n agent python scripts/verify_evidence.py \
+  --quest-root /home/jackpot/DeepScientist/quests/evidence-demo \
+  --report outputs/report.md \
+  --nli-backend cascade \
+  --model-source modelscope \
+  --modelscope-model cross-encoder/nli-roberta-base \
+  --cascade-api \
   --env-file .env \
   --json-out outputs/verify.json \
   --md-out outputs/verify.md
 ```
 
-### 5.3 使用本地 heuristic 快速验证
+### 5.3 只使用本地 heuristic 快速验证
 
 ```bash
 PYTHONPATH=src:scripts conda run -n agent python scripts/verify_evidence.py \
@@ -241,6 +289,16 @@ PYTHONPATH=src:scripts conda run -n agent python scripts/before_after_compare.py
 ## 6. 输出指标解释
 
 `verify_evidence.py` 输出的主要指标：
+
+在 `cascade` 模式下，`verify.json` 的每条结果还会包含 `stages` 字段，分别记录：
+
+- `heuristic`：本地启发式判断
+- `nli`：NLI 模型判断
+- `llm_api`：可选 LLM API 复核结果
+
+最终 `nli_label` 的优先级是：LLM API（如果启用且成功） > NLI 模型 > heuristic。
+
+
 
 | 指标 | 含义 |
 |---|---|
@@ -297,6 +355,8 @@ conda run -n agent python -m pytest tests/test_evidence_validation_c.py tests/te
 
 ## 9. 当前边界
 
+- 默认 `cascade` 会尝试运行本地 NLI 模型；如果 HuggingFace 连接超时，可以加 `--model-source modelscope`。如果只想快速联调，可以显式使用 `--nli-backend heuristic`。
+- LLM API 复核不会默认调用，必须显式添加 `--cascade-api`。
 - C 部分不会重新实现 `artifact.evidence_record(...)`，只读取 A 已经生成的 evidence 文件。
 - API 后端默认假设服务兼容 OpenAI chat completions。
 - 外部 API 的判断质量取决于所选模型和 prompt。

@@ -24,4 +24,4 @@ Evidence records: 1
 
 | Evidence ID | Agent Label | NLI Label | Score | Backend | Rationale |
 |---|---|---|---:|---|---|
-| EVD-0c8841da-001 | supported | entailment | 1.000 | heuristic | High token overlap and numeric values are covered by the excerpt. |
+| EVD-0c8841da-001 | supported | entailment | 1.000 | cascade | heuristic=entailment (1.000); nli=entailment (0.990); llm_api=entailment (1.000). Final label selected from api. |
