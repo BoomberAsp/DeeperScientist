@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="500" height="420" font-family="JetBrains Mono, Consolas, monospace">
+  <!-- Terminal background -->
+  <rect x="0" y="0" width="500" height="420" rx="8" fill="#282a36"/>
+  <rect x="0" y="0" width="500" height="420" rx="8" fill="none" stroke="#6272a4" stroke-width="1.5"/>
+
+  <!-- Title bar -->
+  <rect x="0" y="0" width="500" height="28" rx="8" fill="#44475a"/>
+  <rect x="0" y="14" width="500" height="14" fill="#44475a"/>
+  <circle cx="14" cy="14" r="5" fill="#ff5555"/>
+  <circle cx="28" cy="14" r="5" fill="#f1fa8c"/>
+  <circle cx="42" cy="14" r="5" fill="#50fa7b"/>
+  <text x="200" y="18" font-size="10" fill="#f8f8f2">Evidence Verification Report</text>
+
+  <!-- Content -->
+  <text x="16" y="50" font-size="11" fill="#f8f8f2" font-weight="bold"># Evidence Verification Report</text>
+  <text x="16" y="70" font-size="10" fill="#6272a4">Quest root: /quests/evidence-demo</text>
+  <text x="16" y="88" font-size="10" fill="#6272a4">Evidence records: 1</text>
+
+  <!-- Metrics section -->
+  <text x="16" y="114" font-size="11" fill="#f8f8f2" font-weight="bold">## Metrics</text>
+  <text x="16" y="136" font-size="10" fill="#8be9fd">agent_nli_agreement_rate</text>  <text x="280" y="136" font-size="10" fill="#50fa7b">100.00%</text>
+  <text x="16" y="154" font-size="10" fill="#8be9fd">hallucination_rate</text>        <text x="280" y="154" font-size="10" fill="#50fa7b">0.00%</text>
+  <text x="16" y="172" font-size="10" fill="#8be9fd">unverifiable_rate</text>          <text x="280" y="172" font-size="10" fill="#50fa7b">0.00%</text>
+  <text x="16" y="190" font-size="10" fill="#8be9fd">citation_completeness</text>      <text x="280" y="190" font-size="10" fill="#50fa7b">100.00%</text>
+
+  <!-- Layer 1 section -->
+  <text x="16" y="220" font-size="11" fill="#f8f8f2" font-weight="bold">## Layer 1 — Citation Integrity</text>
+  <text x="16" y="240" font-size="10" fill="#6272a4">Total references:  1</text>
+  <text x="16" y="256" font-size="10" fill="#50fa7b">Verified:          1</text>
+  <text x="16" y="272" font-size="10" fill="#6272a4">Mismatched:        0</text>
+  <text x="16" y="288" font-size="10" fill="#6272a4">Missing:           0</text>
+  <text x="16" y="304" font-size="10" fill="#6272a4">Retracted but cited: 0</text>
+
+  <!-- Layer 2 section -->
+  <text x="16" y="336" font-size="11" fill="#f8f8f2" font-weight="bold">## Layer 2 — NLI Semantic Check</text>
+  <rect x="16" y="346" width="468" height="22" rx="3" fill="#44475a"/>
+  <text x="22" y="361" font-size="9" fill="#ffffff">EVD ID              Agent        NLI          Score   Backend</text>
+  <text x="22" y="380" font-size="9" fill="#f8f8f2">EVD-0c8841da-001</text>
+  <text x="180" y="380" font-size="9" fill="#50fa7b">supported</text>
+  <text x="280" y="380" font-size="9" fill="#50fa7b">entailment</text>
+  <text x="380" y="380" font-size="9" fill="#50fa7b">1.000</text>
+  <text x="430" y="380" font-size="9" fill="#8be9fd">cascade</text>
+
+  <text x="16" y="406" font-size="9" fill="#6272a4">All backends agree: heuristic=entailment, nli=entailment, llm_api=entailment</text>
+</svg>

@@ -2686,18 +2686,44 @@ def build_artifact_server(context: McpContext) -> FastMCP:
     @server.tool(
         name="evidence_verify",
         description=(
-            "Verify evidence references in agent-generated output text. "
-            "Parses all [EVD-xxx:level] annotations and cross-checks them against INDEX.md. "
-            "Returns verified, mismatched (level mismatch), missing (ID not in INDEX.md), "
-            "and unreferenced (in INDEX.md but not cited) evidence."
+            "Run the integrated evidence verification workflow before publishing a research summary, "
+            "handoff, paper-facing report, or any user-visible answer that cites [EVD-xxx:level]. "
+            "This replaces the old placeholder citation checker. It performs Layer 1 citation integrity checks "
+            "(missing IDs, level mismatches, retracted citations, unreferenced evidence), optionally includes an "
+            "evidence table, then performs Layer 2 semantic verification using verification_mode. "
+            "Default verification_mode='cascade' runs heuristic first, then a local NLI model from ModelScope; "
+            "set cascade_api=true only when the user or task explicitly wants the final paid/remote LLM API review. "
+            "The tool returns structured results plus user_visible_markdown. After calling it, fix missing, mismatched, "
+            "retracted, neutral, contradiction, or unverifiable items before publishing. The verification summary should "
+            "be visible to the user when reporting evidence-backed conclusions."
         ),
     )
-    def evidence_verify(agent_output_text: str = "") -> dict[str, Any]:
+    def evidence_verify(
+        agent_output_text: str = "",
+        verification_mode: str = "cascade",
+        include_evidence_table: bool = True,
+        cascade_api: bool = False,
+        model_source: str = "modelscope",
+        model: str | None = None,
+        modelscope_model: str | None = "cross-encoder/nli-roberta-base",
+        env_file: str | None = ".env",
+        write_artifacts: bool = True,
+        artifact_prefix: str = "evidence_verify",
+    ) -> dict[str, Any]:
         if not agent_output_text.strip():
             return {"ok": False, "error": "agent_output_text is required"}
         return service.verify_evidence_claims(
             context.require_quest_root(),
             agent_output_text=agent_output_text,
+            verification_mode=verification_mode,
+            include_evidence_table=include_evidence_table,
+            cascade_api=cascade_api,
+            model_source=model_source,
+            model=model,
+            modelscope_model=modelscope_model,
+            env_file=env_file,
+            write_artifacts=write_artifacts,
+            artifact_prefix=artifact_prefix,
         )
 
     @server.tool(

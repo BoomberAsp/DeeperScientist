@@ -147,10 +147,12 @@ class PromptBuilder:
             Path("contracts") / "shared_interaction.md",
             quest_root=quest_root,
         )
-        evidence_tracking_block = self._prompt_fragment(
-            Path("contracts") / "evidence_tracking.md",
-            quest_root=quest_root,
-        )
+        evidence_tracking_block = ""
+        if not os.environ.get("DEEPSCIENTIST_SKIP_EVIDENCE_TRACKING"):
+            evidence_tracking_block = self._prompt_fragment(
+                Path("contracts") / "evidence_tracking.md",
+                quest_root=quest_root,
+            )
         admin_ops_contract_block = ""
         admin_ops_knowledge_block = ""
         admin_ops_session_block = ""

@@ -15564,7 +15564,9 @@ class ArtifactService:
                 body_parts.append(relation)
                 body_parts.append("")
             body = "\n".join(body_parts)
-            evidence_path.write_text(dump_markdown_document(metadata, body), encoding="utf-8")
+        else:
+            body = existing_body
+        evidence_path.write_text(dump_markdown_document(metadata, body), encoding="utf-8")
 
         # Sync INDEX.md
         _upsert_index_row(
@@ -15656,81 +15658,40 @@ class ArtifactService:
         quest_root: Path,
         *,
         agent_output_text: str,
+        verification_mode: str = "cascade",
+        include_evidence_table: bool = True,
+        cascade_api: bool = False,
+        model_source: str = "modelscope",
+        model: str | None = None,
+        modelscope_model: str | None = "cross-encoder/nli-roberta-base",
+        env_file: str | None = ".env",
+        write_artifacts: bool = True,
+        artifact_prefix: str = "evidence_verify",
     ) -> dict:
         """
-        Parse [EVD-xxx:level] references in agent output and cross-check against INDEX.md.
+        Run the integrated C-part evidence verifier.
 
-        Returns verified, mismatched, missing, and unreferenced evidence.
+        This keeps the old Layer 1 citation fields at the top level for
+        compatibility, and adds evidence table, cascade semantic verification,
+        user-visible markdown, guidance, and optional verification artifacts.
         """
-        index_path = quest_root / "artifacts" / "evidence" / "INDEX.md"
-        if not index_path.exists():
-            return {"ok": False, "error": "INDEX.md not found"}
+        from .evidence_verifier import verify_evidence_integrated
 
-        # Extract all evidence references from agent output (skip code blocks)
-        ref_pattern = re.compile(r'\[(EVD-[^\]:]+)(?::([^\]]+))?\]')
-        code_block_pattern = re.compile(r'```')
-        agent_refs: dict[str, str | None] = {}
-
-        in_code_block = False
-        for raw_line in agent_output_text.split("\n"):
-            if code_block_pattern.search(raw_line):
-                in_code_block = not in_code_block
-                continue
-            if in_code_block:
-                continue
-            for match in ref_pattern.finditer(raw_line):
-                evd_id = match.group(1)
-                level = match.group(2) if match.group(2) else None
-                agent_refs[evd_id] = level
-
-        # Read INDEX.md evidence entries
-        index_rows = _parse_index_table(index_path, section="Evidence Records")
-        index_ids: dict[str, str] = {r.get("Evidence ID", ""): r.get("Evidence Level", "")
-                                       for r in index_rows if r.get("Evidence ID")}
-
-        # Cross-validate
-        verified = []
-        mismatched = []
-        missing = []
-        retracted_but_cited = []
-        for evd_id, claimed_level in agent_refs.items():
-            if evd_id in index_ids:
-                actual_level = index_ids[evd_id]
-                if actual_level == "retracted":
-                    retracted_but_cited.append({
-                        "evidence_id": evd_id,
-                        "claimed_level": claimed_level,
-                        "warning": "This evidence has been retracted and should not be cited.",
-                    })
-                elif claimed_level and claimed_level != actual_level:
-                    mismatched.append({
-                        "evidence_id": evd_id,
-                        "claimed_level": claimed_level,
-                        "actual_level": actual_level,
-                    })
-                else:
-                    verified.append(evd_id)
-            else:
-                missing.append(evd_id)
-
-        unreferenced = [eid for eid in index_ids if eid not in agent_refs]
-
-        total = len(agent_refs)
-        return {
-            "ok": True,
-            "total_references": total,
-            "verified": verified,
-            "verified_count": len(verified),
-            "mismatched": mismatched,
-            "mismatched_count": len(mismatched),
-            "missing": missing,
-            "missing_count": len(missing),
-            "retracted_but_cited": retracted_but_cited,
-            "retracted_but_cited_count": len(retracted_but_cited),
-            "unreferenced": unreferenced,
-            "unreferenced_count": len(unreferenced),
-            "verification_rate": f"{len(verified) / total * 100:.1f}%" if total else "N/A",
-        }
+        if not str(agent_output_text or "").strip():
+            return {"ok": False, "error": "agent_output_text is required"}
+        return verify_evidence_integrated(
+            quest_root,
+            agent_output_text=agent_output_text,
+            verification_mode=verification_mode,
+            include_evidence_table=include_evidence_table,
+            cascade_api=cascade_api,
+            model_source=model_source,
+            model=model,
+            modelscope_model=modelscope_model,
+            env_file=env_file,
+            write_artifacts=write_artifacts,
+            artifact_prefix=artifact_prefix,
+        )
 
     def index_snapshot(self, quest_root: Path) -> dict:
         """Parse all three tables from INDEX.md and return structured JSON snapshot."""

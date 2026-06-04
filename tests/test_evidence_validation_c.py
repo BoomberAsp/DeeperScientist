@@ -24,7 +24,7 @@ def test_evidence_table_loads_records_and_renders_markdown(tmp_path: Path) -> No
 
 
 def test_verify_evidence_reports_layer1_and_heuristic_layer2(tmp_path: Path) -> None:
-    from verify_evidence import build_report
+    from deepscientist.artifact.evidence_verifier import build_report
 
     quest_root = tmp_path / "quest"
     evidence_id = "EVD-demo-001"
@@ -74,7 +74,7 @@ def _write_evidence_file(quest_root: Path, evidence_id: str) -> None:
 
 
 def test_api_env_file_and_model_override(tmp_path: Path) -> None:
-    from verify_evidence import _load_api_config
+    from deepscientist.artifact.evidence_verifier import _load_api_config
 
     env_file = tmp_path / ".env"
     env_file.write_text(
@@ -90,7 +90,7 @@ def test_api_env_file_and_model_override(tmp_path: Path) -> None:
 
 
 def test_parse_api_nli_response_accepts_json_fence() -> None:
-    from verify_evidence import _parse_api_nli_response
+    from deepscientist.artifact.evidence_verifier import _parse_api_nli_response
 
     payload = {
         "choices": [
@@ -109,7 +109,7 @@ def test_parse_api_nli_response_accepts_json_fence() -> None:
 
 def test_call_api_nli_uses_openai_compatible_payload() -> None:
     from deepscientist.artifact.evidence_table import EvidenceRecord
-    from verify_evidence import _call_api_nli
+    from deepscientist.artifact.evidence_verifier import _call_api_nli
 
     class FakeResponse:
         def raise_for_status(self) -> None:
@@ -168,3 +168,135 @@ def test_call_api_nli_uses_openai_compatible_payload() -> None:
     assert result.backend == "api"
     assert result.nli_label == "entailment"
     assert result.score == 0.88
+
+
+
+def test_cascade_records_heuristic_nli_and_skipped_api(tmp_path: Path, monkeypatch) -> None:
+    import deepscientist.artifact.evidence_verifier as ve
+
+    quest_root = tmp_path / "quest"
+    evidence_id = "EVD-demo-001"
+    _write_evidence_file(quest_root, evidence_id)
+
+    def fake_transformers(records, *, model, model_source="huggingface", modelscope_model=None):
+        return [
+            ve.NliResult(
+                evidence_id=record.evidence_id,
+                agent_label=record.evidence_level,
+                nli_label="neutral",
+                score=0.77,
+                backend="transformers",
+                rationale="fake nli uncertainty",
+            )
+            for record in records
+        ]
+
+    monkeypatch.setattr(ve, "_run_transformers_nli", fake_transformers)
+    payload = ve.build_report(
+        quest_root,
+        f"The model reaches 93.2% accuracy [{evidence_id}:supported].",
+        backend="cascade",
+    )
+    result = payload["layer2"]["results"][0]
+    assert result["backend"] == "cascade"
+    assert result["nli_label"] == "neutral"
+    assert result["stages"]["heuristic"]["label"] == "entailment"
+    assert result["stages"]["nli"]["label"] == "neutral"
+    assert result["stages"]["llm_api"]["label"] == "skipped"
+
+
+def test_cascade_api_final_review_can_override_nli(tmp_path: Path, monkeypatch) -> None:
+    import deepscientist.artifact.evidence_verifier as ve
+
+    quest_root = tmp_path / "quest"
+    evidence_id = "EVD-demo-001"
+    _write_evidence_file(quest_root, evidence_id)
+
+    def fake_transformers(records, *, model, model_source="huggingface", modelscope_model=None):
+        return [
+            ve.NliResult(
+                evidence_id=record.evidence_id,
+                agent_label=record.evidence_level,
+                nli_label="entailment",
+                score=0.83,
+                backend="transformers",
+                rationale="fake nli support",
+            )
+            for record in records
+        ]
+
+    def fake_api(records, *, model, env_file):
+        return [
+            ve.NliResult(
+                evidence_id=record.evidence_id,
+                agent_label=record.evidence_level,
+                nli_label="contradiction",
+                score=0.92,
+                backend="api",
+                rationale="fake api contradiction",
+            )
+            for record in records
+        ]
+
+    monkeypatch.setattr(ve, "_run_transformers_nli", fake_transformers)
+    monkeypatch.setattr(ve, "_run_api_nli", fake_api)
+    payload = ve.build_report(
+        quest_root,
+        f"The model reaches 93.2% accuracy [{evidence_id}:supported].",
+        backend="cascade",
+        cascade_api=True,
+    )
+    result = payload["layer2"]["results"][0]
+    assert result["nli_label"] == "contradiction"
+    assert result["score"] == 0.92
+    assert result["stages"]["llm_api"]["label"] == "contradiction"
+    assert "Final label selected from api" in result["rationale"]
+
+
+
+def test_modelscope_model_source_uses_snapshot_download(monkeypatch, tmp_path: Path) -> None:
+    import sys
+    import types
+    import deepscientist.artifact.evidence_verifier as ve
+
+    calls = []
+    module = types.ModuleType("modelscope")
+
+    def fake_snapshot_download(model_id: str) -> str:
+        calls.append(model_id)
+        return str(tmp_path / "cached-model")
+
+    module.snapshot_download = fake_snapshot_download
+    monkeypatch.setitem(sys.modules, "modelscope", module)
+
+    resolved = ve._resolve_transformers_model(
+        model=None,
+        model_source="modelscope",
+        modelscope_model="demo/nli-model",
+    )
+    assert resolved == str(tmp_path / "cached-model")
+    assert calls == ["demo/nli-model"]
+
+
+
+def test_artifact_service_integrated_evidence_verify_returns_user_visible_markdown(tmp_path: Path) -> None:
+    from deepscientist.artifact.service import ArtifactService
+
+    quest_root = tmp_path / "quest"
+    evidence_id = "EVD-demo-001"
+    _write_evidence_file(quest_root, evidence_id)
+    service = ArtifactService(tmp_path)
+
+    result = service.verify_evidence_claims(
+        quest_root,
+        agent_output_text=f"The model reaches 93.2% accuracy [{evidence_id}:supported].",
+        verification_mode="none",
+        write_artifacts=True,
+    )
+
+    assert result["ok"] is True
+    assert result["verified_count"] == 1
+    assert result["summary"]["verified_count"] == 1
+    assert "Evidence Verification Summary" in result["user_visible_markdown"]
+    assert result["artifact_paths"]["verify_md"].startswith("artifacts/evidence/verification/")
+    assert (quest_root / result["artifact_paths"]["verify_md"]).exists()
