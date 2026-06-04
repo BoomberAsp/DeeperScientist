@@ -67,22 +67,26 @@ def api(path: str, method: str = "GET", body: dict | None = None) -> Any:
 
 def daemon_ok() -> bool:
     try:
-        return api("/api/quests", method="GET").get("ok") is True
+        quests = api("/api/quests", method="GET")
+        return isinstance(quests, list)
     except SystemExit:
         return False
 
 
 def quest_exists() -> bool:
     quests = api("/api/quests", method="GET")
-    return QUEST_ID in quests.get("quest_ids", [])
+    if not isinstance(quests, list):
+        return False
+    return any(str(item.get("quest_id") or "") == QUEST_ID for item in quests if isinstance(item, dict))
 
 
 def wait_for_idle(quest_id: str, timeout: int = 600) -> bool:
     """Poll until the quest status is idle."""
     deadline = time.time() + timeout
     while time.time() < deadline:
-        status = api(f"/api/quests/{quest_id}/status", method="GET")
-        state = status.get("status", "unknown")
+        session = api(f"/api/quests/{quest_id}/session", method="GET")
+        snapshot = session.get("snapshot") if isinstance(session, dict) else {}
+        state = str((snapshot or {}).get("status") or (snapshot or {}).get("runtime_status") or "unknown")
         if state == "idle":
             return True
         if state in ("error", "stopped"):
@@ -95,10 +99,11 @@ def wait_for_idle(quest_id: str, timeout: int = 600) -> bool:
 
 def extract_agent_output(quest_id: str) -> str:
     """Pull the last assistant message from the quest chat history."""
-    messages = api(f"/api/quests/{quest_id}/chat/messages", method="GET")
+    messages = api(f"/api/quests/{quest_id}/history", method="GET")
     assistant_msgs = [
         m["content"]
-        for m in messages.get("messages", [])
+        for m in messages
+        if isinstance(m, dict)
         if m.get("role") == "assistant"
     ]
     if not assistant_msgs:
@@ -119,11 +124,23 @@ def cmd_setup() -> None:
 
     if quest_exists():
         print(f"Quest '{QUEST_ID}' already exists — skipping creation.")
+        api(
+            f"/api/quests/{QUEST_ID}/settings",
+            method="PATCH",
+            body={"workspace_mode": "copilot"},
+        )
     else:
         payload = api(
             f"/api/quests",
             method="POST",
-            body={"quest_id": QUEST_ID},
+            body={
+                "quest_id": QUEST_ID,
+                "goal": prompt_text,
+                "startup_contract": {
+                    "workspace_mode": "copilot",
+                    "decision_policy": "user_gated",
+                },
+            },
         )
         if not payload.get("ok"):
             sys.exit(f"Failed to create quest: {payload}")
@@ -158,7 +175,7 @@ def _run_quest(*, skip_evidence_tracking: bool) -> str:
     chat_resp = api(
         f"/api/quests/{QUEST_ID}/chat",
         method="POST",
-        body={"message": prompt_text},
+        body={"text": prompt_text},
     )
     print(f"Chat response: {json.dumps(chat_resp, indent=2, ensure_ascii=False)[:500]}...")
 
