@@ -61,7 +61,7 @@ tests/test_evidence_validation_c.py
 
 | 后端 | 命令值 | 用途 |
 |---|---|---|
-| 级联验证 | `cascade` | 默认流程：先 heuristic，再 NLI 模型，最后可选 LLM API 复核 |
+| 级联验证 | `cascade` | 默认流程：先 heuristic，再 NLI 模型，最后调用 LLM API 生成理由 |
 | 启发式本地验证 | `heuristic` | 只跑本地规则，快速、无 API、适合联调 |
 | HuggingFace 本地 NLI 模型 | `transformers` | 只跑本地 NLI 模型 |
 | 外部 LLM API | `api` | 只跑 OpenAI-compatible chat completions API |
@@ -72,7 +72,7 @@ tests/test_evidence_validation_c.py
 ```text
 heuristic 本地快速筛查
   -> transformers NLI 模型验证
-  -> 可选 LLM API 最终复核（加 --cascade-api 才会调用）
+  -> LLM API 理由生成（网页端/MCP 默认启用；命令行加 --cascade-api 启用）
 ```
 
 ### 2.3 `before_after_compare.py`
@@ -222,9 +222,9 @@ PYTHONPATH=src:scripts conda run -n agent python -m deepscientist.artifact.evide
 
 ### 5.2 使用默认级联流程做双层验证
 
-默认级联流程会先做 heuristic，再做 NLI 模型验证。LLM API 是可选最终复核，只有加 `--cascade-api` 才会调用。
+默认级联流程会先做 heuristic，再做 NLI 模型验证。网页端/MCP 工具默认启用 LLM API 生成查验理由；命令行脚本仍需加 `--cascade-api`。
 
-不调用 LLM API，默认从 HuggingFace 加载 NLI 模型：
+命令行不加 `--cascade-api` 时，只运行 heuristic + NLI 模型，默认从 ModelScope 加载 NLI 模型：
 
 ```bash
 PYTHONPATH=src:scripts conda run -n agent python scripts/verify_evidence.py \
@@ -235,7 +235,7 @@ PYTHONPATH=src:scripts conda run -n agent python scripts/verify_evidence.py \
   --md-out outputs/verify.md
 ```
 
-如果 HuggingFace 连接超时，改用 ModelScope 下载 NLI 模型：
+如需显式指定 ModelScope NLI 模型：
 
 ```bash
 PYTHONPATH=src:scripts conda run -n agent python scripts/verify_evidence.py \
@@ -250,7 +250,7 @@ PYTHONPATH=src:scripts conda run -n agent python scripts/verify_evidence.py \
 
 如果该 ModelScope 模型 ID 不可用，请在 ModelScope 网站上选择一个兼容 transformers 的 NLI/MNLI 模型，并把 `--modelscope-model` 改成对应 ID。
 
-启用 LLM API 最终复核：
+命令行启用 LLM API 理由生成：
 
 ```bash
 PYTHONPATH=src:scripts conda run -n agent python scripts/verify_evidence.py \
@@ -351,12 +351,12 @@ conda run -n agent python -m pytest tests/test_evidence_validation_c.py tests/te
 4. 准备一份没有 evidence tracking 的 before report。
 5. 准备一份带 evidence tracking 的 after report。
 6. 运行 `before_after_compare.py` 展示 citation completeness 提升。
-7. 重点展示 hallucination case：Agent 标 `supported`，但外部 API 判 `neutral` 或 `contradiction`。
+7. 重点展示 hallucination case：Agent 标 `supported`，但 NLI 判 `neutral` 或 `contradiction`；LLM API 只解释为什么来源不能支持 claim。
 
 ## 9. 当前边界
 
 - 默认 `cascade` 会尝试运行本地 NLI 模型；如果 HuggingFace 连接超时，可以加 `--model-source modelscope`。如果只想快速联调，可以显式使用 `--nli-backend heuristic`。
-- LLM API 复核不会默认调用，必须显式添加 `--cascade-api`。
+- 网页端/MCP 默认调用 LLM API 生成理由；命令行脚本仍需显式添加 `--cascade-api`。
 - C 部分不会重新实现 `artifact.evidence_record(...)`，只读取 A 已经生成的 evidence 文件。
 - API 后端默认假设服务兼容 OpenAI chat completions。
 - 外部 API 的判断质量取决于所选模型和 prompt。
@@ -386,7 +386,7 @@ artifact.evidence_verify(
     agent_output_text="完整待发布报告文本，包含 [EVD-xxx:level]",
     verification_mode="cascade",
     include_evidence_table=true,
-    cascade_api=false,
+    cascade_api=true,
     model_source="modelscope",
     modelscope_model="cross-encoder/nli-roberta-base",
     env_file=".env",
@@ -400,7 +400,7 @@ artifact.evidence_verify(
 - 工具名继续叫 `artifact.evidence_verify`。
 - 默认 `verification_mode="cascade"`。
 - 默认 `model_source="modelscope"`。
-- 默认不调用 LLM API；只有 `cascade_api=true` 才调用。启用后，API 会基于前置 heuristic/NLI 结果生成查验理由，但没有更改最终标签的权限。
+- 默认 `cascade_api=true`，会调用 LLM API 基于前置 heuristic/NLI 结果生成查验理由，但没有更改最终标签的权限。若要省 API 调用，可显式设置 `cascade_api=false`。
 - 默认把验证报告写入 `artifacts/evidence/verification/`。
 - Agent 必须把 `user_visible_markdown` 展示或摘要给用户。
 

@@ -15677,7 +15677,7 @@ class ArtifactService:
         agent_output_text: str,
         verification_mode: str = "cascade",
         include_evidence_table: bool = True,
-        cascade_api: bool = False,
+        cascade_api: bool = True,
         model_source: str = "modelscope",
         model: str | None = None,
         modelscope_model: str | None = "cross-encoder/nli-roberta-base",

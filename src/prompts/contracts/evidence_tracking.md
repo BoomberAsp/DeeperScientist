@@ -4,7 +4,7 @@ After source-bearing inspection, record relied-on claims with `artifact.evidence
 
 Do not invent ids. Cite ids from `artifact.evidence_record(...)` or `artifact.evidence_list(...)`: `[EVD-xxx:supported]`, `[EVD-xxx:inferred]`, `[EVD-xxx:insufficient]`.
 
-Before reports/final answers, use draft -> verify -> revise: list evidence, draft with `[EVD-xxx:level]`, run `artifact.evidence_verify(agent_output_text=full report text)`, then revise by `verification_status` (green keep, yellow downgrade, red remove/correct).
+Before reports/final answers, use draft -> verify -> revise: list evidence, draft with `[EVD-xxx:level]`, run `artifact.evidence_verify(agent_output_text=full report text, cascade_api=true)`, then revise by `verification_status` (green keep, yellow downgrade, red remove/correct).
 
 Benchmark: make `before_report` and evidence-tracked `after_report`; call `artifact.evidence_verify(..., before_output_text=before_report, comparison_mode=true)`; show `comparison_markdown`.
 

@@ -110,12 +110,12 @@ artifact.evidence_verify(
     verification_mode="cascade",
     model_source="modelscope",
     modelscope_model="cross-encoder/nli-roberta-base",
-    cascade_api=false,
+    cascade_api=true,
     write_artifacts=true,
 )
 ```
 
-Only set `cascade_api=true` when the user or task explicitly wants the final remote LLM API review.
+Keep `cascade_api=true` by default so the LLM API generates source-grounded rationale from `.env`; set `cascade_api=false` only when the user wants to skip remote API use.
 
 The verifier's `verification_status` is the publishability signal: `green` means supported, `yellow` means uncertain or weakly supported, and `red` means unsafe as support.
 

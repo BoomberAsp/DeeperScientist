@@ -172,7 +172,7 @@ def run_nli(
     backend: str,
     model: str | None = None,
     env_file: Path | None = None,
-    cascade_api: bool = False,
+    cascade_api: bool = True,
     model_source: str = "modelscope",
     modelscope_model: str | None = None,
 ) -> list[NliResult]:
@@ -204,7 +204,7 @@ def run_occurrence_nli(
     backend: str,
     model: str | None = None,
     env_file: Path | None = None,
-    cascade_api: bool = False,
+    cascade_api: bool = True,
     model_source: str = "modelscope",
     modelscope_model: str | None = None,
 ) -> list[NliResult]:
@@ -891,7 +891,7 @@ def build_report(
     backend: str,
     model: str | None = None,
     env_file: Path | None = None,
-    cascade_api: bool = False,
+    cascade_api: bool = True,
     model_source: str = "modelscope",
     modelscope_model: str | None = None,
 ) -> dict[str, Any]:
@@ -974,7 +974,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--model-source", choices=("huggingface", "modelscope"), default="modelscope", help="Where transformers/cascade should load the NLI model from.")
     parser.add_argument("--modelscope-model", default=None, help="ModelScope model id for --model-source modelscope. Defaults to --model or NLI_MODELSCOPE_MODEL.")
     parser.add_argument("--env-file", type=Path, default=Path(".env"), help="Environment file for --nli-backend api or --cascade-api.")
-    parser.add_argument("--cascade-api", action="store_true", help="With --nli-backend cascade, run the final optional LLM API review after heuristic and NLI stages.")
+    parser.add_argument("--cascade-api", action="store_true", help="With --nli-backend cascade, call the LLM API to generate rationale from heuristic/NLI results without changing labels.")
     parser.add_argument("--json-out", type=Path)
     parser.add_argument("--md-out", type=Path)
     parser.add_argument("--annotated-out", type=Path, help="Write the original report plus an evidence verification appendix.")
@@ -1186,7 +1186,7 @@ def verify_evidence_integrated(
     agent_output_text: str,
     verification_mode: str = "cascade",
     include_evidence_table: bool = True,
-    cascade_api: bool = False,
+    cascade_api: bool = True,
     model_source: str = "modelscope",
     model: str | None = None,
     modelscope_model: str | None = "cross-encoder/nli-roberta-base",

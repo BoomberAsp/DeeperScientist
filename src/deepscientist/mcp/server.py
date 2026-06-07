@@ -2692,7 +2692,8 @@ def build_artifact_server(context: McpContext) -> FastMCP:
             "(missing IDs, level mismatches, retracted citations, unreferenced evidence), optionally includes an "
             "evidence table, then performs Layer 2 semantic verification using verification_mode. "
             "Default verification_mode='cascade' runs heuristic first, then a local NLI model from ModelScope; "
-            "set cascade_api=true only when the user or task explicitly wants the final paid/remote LLM API review. "
+            "cascade_api defaults to true so the configured LLM API adds source-grounded rationale without changing labels. "
+            "Set cascade_api=false only when the user wants to skip remote LLM rationale generation. "
             "For one-turn before/after hallucination benchmarks, pass before_output_text and comparison_mode=true; "
             "the tool then returns before_detection_markdown, after_detection_markdown, and comparison_markdown. "
             "The tool returns structured results plus user_visible_markdown. After calling it, fix missing, mismatched, "
@@ -2705,7 +2706,7 @@ def build_artifact_server(context: McpContext) -> FastMCP:
         agent_output_text: str = "",
         verification_mode: str = "cascade",
         include_evidence_table: bool = True,
-        cascade_api: bool = False,
+        cascade_api: bool = True,
         model_source: str = "modelscope",
         model: str | None = None,
         modelscope_model: str | None = "cross-encoder/nli-roberta-base",
