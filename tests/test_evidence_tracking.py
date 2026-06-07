@@ -206,6 +206,44 @@ class TestEvidenceRecord:
         assert update_result["ok"] is True
         assert update_result["evidence_level"] == "supported"
 
+    def test_update_evidence_preserves_excerpt_when_relation_changes(self, quest_dirs, service):
+        _tmp_path, quest_root = quest_dirs
+
+        record = service.record_evidence(
+            quest_root, title="E1", claim="C1", evidence_level="supported",
+            source_excerpt=_SAMPLE_EXCERPT,
+            claim_relation="Initial relation.",
+        )
+        evd_id = record["evidence_id"]
+
+        update_result = service.update_evidence(
+            quest_root,
+            evidence_id=evd_id,
+            claim_relation="Updated relation only.",
+        )
+        detail = service.get_evidence(quest_root, evd_id)
+
+        assert update_result["ok"] is True
+        assert _SAMPLE_EXCERPT in detail["body"]
+        assert "Updated relation only." in detail["body"]
+
+    def test_update_evidence_revalidates_supported_excerpt_requirement(self, quest_dirs, service):
+        _tmp_path, quest_root = quest_dirs
+
+        record = service.record_evidence(
+            quest_root, title="E1", claim="C1", evidence_level="insufficient",
+        )
+        evd_id = record["evidence_id"]
+
+        update_result = service.update_evidence(
+            quest_root,
+            evidence_id=evd_id,
+            evidence_level="supported",
+        )
+
+        assert update_result["ok"] is False
+        assert any("source_excerpt" in error for error in update_result["errors"])
+
     def test_get_evidence_returns_detail(self, quest_dirs, service):
         _tmp_path, quest_root = quest_dirs
 

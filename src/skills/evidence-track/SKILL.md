@@ -10,6 +10,8 @@ Use this companion skill whenever the task asks for evidence tracking, source-gr
 
 The goal is simple: every factual claim that matters should have a visible source trail.
 
+For before/after hallucination comparisons, keep artifacts small: the goal is to show whether evidence-chain verification reduces unsupported claims, not to write a polished literature review.
+
 ## When To Use
 
 Use this skill after any tool or material inspection that yields factual content:
@@ -80,16 +82,25 @@ The method may improve robustness, but this has not been measured yet [NO_EVIDEN
 
 Do not place invented or placeholder ids in final answers.
 
+## Concise Comparison Mode
+
+For before/after hallucination benchmarks, output one idea/hypothesis, cite only key claims, and skip surveys or procedure logs.
+
+Web benchmark output: `Before Hallucination Table`, `After Evidence-Chain Hallucination Table`, `Final After Report`; use `🟢 green`, `🟡 yellow`, `🔴 red`; risk is `(yellow + red) / total`.
+
 ## Verification Before Reports
 
 Before a report, summary, handoff, paper-facing section, or final answer with evidence-labeled claims:
 
 1. Call `artifact.evidence_list(...)` to inspect available evidence.
 2. Draft the answer with `[EVD-xxx:level]` labels.
-3. Call `artifact.evidence_verify(agent_output_text=...)` before publishing the answer. Use the default integrated verifier unless the user explicitly asks for a lighter mode.
-4. Read the returned `summary`, `layer1`, `layer2`, `guidance`, and `user_visible_markdown`.
-5. Fix missing ids, mismatched levels, retracted citations, and semantic risk items such as `neutral`, `contradiction`, or `unverifiable` results for claims marked `supported`.
-6. Show the verification result to the user by including or summarizing `user_visible_markdown` in the final response.
+3. Call `artifact.evidence_verify(agent_output_text=...)` before publishing. If saved as an artifact, pass the full artifact text, not a chat summary.
+4. Read `summary`, `layer1`, `layer2`, `guidance`, `user_visible_markdown`, and `annotated_report_markdown`.
+5. Revise before publishing: keep `green`, downgrade `yellow`, and remove, replace, or explicitly correct `red`.
+6. The final answer must be the revised report, not the unrevised draft with a warning table pasted below it.
+7. Reports must include a compact table: claim, evidence id, before label, after label, status, action. Keep score, rationale, label delta, and final publish decision in JSON unless requested.
+
+For a one-conversation benchmark, call `artifact.evidence_verify(..., before_output_text=before_report, comparison_mode=true)` and return `comparison_markdown`.
 
 Default integrated verifier call shape:
 
@@ -105,6 +116,8 @@ artifact.evidence_verify(
 ```
 
 Only set `cascade_api=true` when the user or task explicitly wants the final remote LLM API review.
+
+The verifier's `verification_status` is the publishability signal: `green` means supported, `yellow` means uncertain or weakly supported, and `red` means unsafe as support.
 
 ## INDEX.md Boundary
 

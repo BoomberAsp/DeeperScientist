@@ -15532,6 +15532,8 @@ class ArtifactService:
             return {"ok": False, "error": f"Evidence not found: {evidence_id}"}
 
         metadata, existing_body = load_markdown_document(evidence_path)
+        existing_excerpt = _extract_evidence_markdown_section(existing_body, "Source Excerpt", blockquote=True)
+        existing_relation = _extract_evidence_markdown_section(existing_body, "Relationship to Claim", blockquote=False)
 
         # Update only the passed non-None fields
         updatable = {
@@ -15543,25 +15545,37 @@ class ArtifactService:
             if value is not None:
                 metadata[key] = value
 
+        final_excerpt = source_excerpt if source_excerpt is not None else existing_excerpt
+        final_relation = claim_relation if claim_relation is not None else existing_relation
+        validation_payload = {
+            "source_type": metadata.get("source_type", ""),
+            "evidence_level": metadata.get("evidence_level", ""),
+            "claim": metadata.get("claim", ""),
+            "source_content_hash": metadata.get("source_content_hash", ""),
+            "source_excerpt": final_excerpt,
+        }
+        errors = validate_evidence_payload(validation_payload)
+        if errors:
+            return {"ok": False, "errors": errors}
+
         metadata["updated_at"] = utc_now()
 
-        # Rewrite body if source_excerpt or claim_relation updated
-        if source_excerpt is not None or claim_relation is not None:
+        # Rewrite body when any visible evidence content changes. Preserve existing
+        # excerpt/relation values unless explicitly replaced.
+        if source_excerpt is not None or claim_relation is not None or claim is not None or title is not None:
             body_parts = [f"# {evidence_id}: {metadata.get('title') or metadata.get('claim', '')[:80]}", ""]
-            excerpt = source_excerpt if source_excerpt is not None else ""
-            if excerpt:
+            if final_excerpt:
                 body_parts.append("## Source Excerpt")
-                body_parts.append(f"> {excerpt}")
+                body_parts.append(f"> {final_excerpt}")
                 body_parts.append("")
-            claim_text = claim if claim is not None else metadata.get("claim", "")
+            claim_text = str(metadata.get("claim") or "")
             if claim_text:
                 body_parts.append("## Claim")
                 body_parts.append(claim_text)
                 body_parts.append("")
-            relation = claim_relation if claim_relation is not None else ""
-            if relation:
+            if final_relation:
                 body_parts.append("## Relationship to Claim")
-                body_parts.append(relation)
+                body_parts.append(final_relation)
                 body_parts.append("")
             body = "\n".join(body_parts)
         else:
@@ -15590,6 +15604,9 @@ class ArtifactService:
                 "evidence_id": evidence_id,
                 "updated_fields": [
                     k for k in updatable if locals().get(k) is not None
+                ] + [
+                    k for k, value in (("source_excerpt", source_excerpt), ("claim_relation", claim_relation))
+                    if value is not None
                 ],
                 "timestamp": utc_now(),
             },
@@ -15667,6 +15684,8 @@ class ArtifactService:
         env_file: str | None = ".env",
         write_artifacts: bool = True,
         artifact_prefix: str = "evidence_verify",
+        before_output_text: str = "",
+        comparison_mode: bool = False,
     ) -> dict:
         """
         Run the integrated C-part evidence verifier.
@@ -15691,6 +15710,8 @@ class ArtifactService:
             env_file=env_file,
             write_artifacts=write_artifacts,
             artifact_prefix=artifact_prefix,
+            before_output_text=before_output_text,
+            comparison_mode=comparison_mode,
         )
 
     def index_snapshot(self, quest_root: Path) -> dict:
@@ -16429,6 +16450,27 @@ class ArtifactService:
 
 
 # ========== Evidence INDEX.md Helper Functions ==========
+
+def _extract_evidence_markdown_section(body: str, heading: str, *, blockquote: bool) -> str:
+    pattern = re.compile(
+        rf"^## {re.escape(heading)}\s*$([\s\S]*?)(?=^## |\Z)",
+        flags=re.MULTILINE,
+    )
+    match = pattern.search(body or "")
+    if not match:
+        return ""
+    text = match.group(1).strip()
+    if blockquote:
+        lines: list[str] = []
+        for line in text.splitlines():
+            stripped = line.strip()
+            if stripped.startswith(">"):
+                stripped = stripped[1:].strip()
+            if stripped:
+                lines.append(stripped)
+        return " ".join(lines).strip()
+    return re.sub(r"\s+", " ", text).strip()
+
 
 def _ensure_index_md(evidence_root: Path) -> Path:
     """Ensure INDEX.md exists; create skeleton if missing."""

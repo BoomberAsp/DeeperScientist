@@ -2693,9 +2693,12 @@ def build_artifact_server(context: McpContext) -> FastMCP:
             "evidence table, then performs Layer 2 semantic verification using verification_mode. "
             "Default verification_mode='cascade' runs heuristic first, then a local NLI model from ModelScope; "
             "set cascade_api=true only when the user or task explicitly wants the final paid/remote LLM API review. "
+            "For one-turn before/after hallucination benchmarks, pass before_output_text and comparison_mode=true; "
+            "the tool then returns before_detection_markdown, after_detection_markdown, and comparison_markdown. "
             "The tool returns structured results plus user_visible_markdown. After calling it, fix missing, mismatched, "
             "retracted, neutral, contradiction, or unverifiable items before publishing. The verification summary should "
-            "be visible to the user when reporting evidence-backed conclusions."
+            "be visible to the user when reporting evidence-backed conclusions. Use publishable_report_markdown, not "
+            "annotated_report_markdown, when yellow/red citations must not remain cited as support."
         ),
     )
     def evidence_verify(
@@ -2709,6 +2712,8 @@ def build_artifact_server(context: McpContext) -> FastMCP:
         env_file: str | None = ".env",
         write_artifacts: bool = True,
         artifact_prefix: str = "evidence_verify",
+        before_output_text: str = "",
+        comparison_mode: bool = False,
     ) -> dict[str, Any]:
         if not agent_output_text.strip():
             return {"ok": False, "error": "agent_output_text is required"}
@@ -2724,6 +2729,8 @@ def build_artifact_server(context: McpContext) -> FastMCP:
             env_file=env_file,
             write_artifacts=write_artifacts,
             artifact_prefix=artifact_prefix,
+            before_output_text=before_output_text,
+            comparison_mode=comparison_mode,
         )
 
     @server.tool(

@@ -107,6 +107,14 @@ def test_prompt_builder_includes_evidence_tracking_contract(temp_home: Path) -> 
     assert "source_excerpt" in prompt
     assert "[EVD-xxx:supported]" in prompt
     assert "[NO_EVIDENCE]" in prompt
+    assert "draft -> verify -> revise" in prompt
+    assert "full report text" in prompt
+    assert "Before Hallucination Table" in prompt
+    assert "After Evidence-Chain Hallucination Table" in prompt
+    assert "Final After Report" in prompt
+    assert "verification_status" in prompt
+    assert "comparison_mode=true" in prompt
+    assert "yellow and red both count toward hallucination risk" in prompt
     assert "stage_memory_rule: for `baseline`, prefer quest memory kinds [papers, evidence" in prompt
 
 

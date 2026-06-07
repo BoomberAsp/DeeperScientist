@@ -40,6 +40,44 @@ type MessageQueueActionResult = {
   message?: string
 }
 
+function flattenReactText(node: React.ReactNode): string {
+  if (node == null || typeof node === 'boolean') return ''
+  if (typeof node === 'string' || typeof node === 'number') return String(node)
+  if (Array.isArray(node)) return node.map(flattenReactText).join('')
+  if (React.isValidElement<{ children?: React.ReactNode }>(node)) {
+    return flattenReactText(node.props.children)
+  }
+  return ''
+}
+
+function hallucinationStatusFromText(text: string): 'green' | 'yellow' | 'red' | null {
+  const normalized = text.trim().toLowerCase()
+  if (!normalized) return null
+  if (normalized.includes('🟢') || normalized === 'green' || normalized.includes('green / supported')) return 'green'
+  if (normalized.includes('🟡') || normalized === 'yellow' || normalized.includes('yellow / uncertain')) return 'yellow'
+  if (normalized.includes('🔴') || normalized === 'red' || normalized.includes('red / hallucinated')) return 'red'
+  return null
+}
+
+function hallucinationStatusBadge(status: 'green' | 'yellow' | 'red') {
+  const copy = {
+    green: { label: 'green', icon: '🟢', className: 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-400/50 dark:bg-emerald-500/15 dark:text-emerald-200' },
+    yellow: { label: 'yellow', icon: '🟡', className: 'border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-400/50 dark:bg-amber-500/15 dark:text-amber-200' },
+    red: { label: 'red', icon: '🔴', className: 'border-rose-300 bg-rose-50 text-rose-700 dark:border-rose-400/50 dark:bg-rose-500/15 dark:text-rose-200' },
+  }[status]
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold leading-4',
+        copy.className
+      )}
+    >
+      <span aria-hidden="true">{copy.icon}</span>
+      <span>{copy.label}</span>
+    </span>
+  )
+}
+
 type QuestConnectorChatViewProps = {
   questId: string
   feed: FeedItem[]
@@ -285,6 +323,21 @@ export function QuestConnectorChatView({
 
   const markdownComponents = React.useMemo<Components>(
     () => ({
+      td: ({ children, className, ...props }) => {
+        const status = hallucinationStatusFromText(flattenReactText(children))
+        if (status) {
+          return (
+            <td {...props} className={className}>
+              {hallucinationStatusBadge(status)}
+            </td>
+          )
+        }
+        return (
+          <td {...props} className={className}>
+            {children}
+          </td>
+        )
+      },
       a: ({ href, children, className, title, ...props }) => {
         const rawHref = typeof href === 'string' ? href : ''
         const fileTarget = rawHref
