@@ -294,9 +294,9 @@ PYTHONPATH=src:scripts conda run -n agent python scripts/before_after_compare.py
 
 - `heuristic`：本地启发式判断
 - `nli`：NLI 模型判断
-- `llm_api`：可选 LLM API 复核结果
+- `llm_api`：可选 LLM API 理由生成结果；在 `cascade` 模式下，它会收到 `heuristic`、`nli` 和锁定的 `final_without_llm_api`，只能基于这些已有判断分析原因，不能更改最终标签。理由应解释 source excerpt 为什么支持、不能支持或矛盾于 claim，例如缺少哪个实体、指标、条件、因果关系、范围或数字，而不是只解释 NLI 分数高低。
 
-最终 `nli_label` 的优先级是：LLM API（如果启用且成功） > NLI 模型 > heuristic。
+最终 `nli_label` 的优先级是：NLI 模型 > heuristic。LLM API 即使启用，也只补充 rationale，不参与改标签。
 
 
 
@@ -400,7 +400,7 @@ artifact.evidence_verify(
 - 工具名继续叫 `artifact.evidence_verify`。
 - 默认 `verification_mode="cascade"`。
 - 默认 `model_source="modelscope"`。
-- 默认不调用 LLM API；只有 `cascade_api=true` 才调用。
+- 默认不调用 LLM API；只有 `cascade_api=true` 才调用。启用后，API 会基于前置 heuristic/NLI 结果生成查验理由，但没有更改最终标签的权限。
 - 默认把验证报告写入 `artifacts/evidence/verification/`。
 - Agent 必须把 `user_visible_markdown` 展示或摘要给用户。
 

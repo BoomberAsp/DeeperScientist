@@ -283,7 +283,17 @@ def _run_cascade_nli(
 ) -> list[NliResult]:
     heuristic_results = [_heuristic_nli(record) for record in records]
     transformer_results = _run_transformers_nli(records, model=model, model_source=model_source, modelscope_model=modelscope_model)
-    api_results = _run_api_nli(records, model=model, env_file=env_file) if cascade_api else [
+    prior_stage_results = []
+    for heuristic, transformer in zip(heuristic_results, transformer_results):
+        locked_final = _choose_cascade_final(heuristic=heuristic, transformer=transformer)
+        prior_stage_results.append(
+            {
+                "heuristic": _stage_payload(heuristic),
+                "nli": _stage_payload(transformer),
+                "final_without_llm_api": _stage_payload(locked_final),
+            }
+        )
+    api_results = _run_api_nli(records, model=model, env_file=env_file, prior_stage_results=prior_stage_results) if cascade_api else [
         NliResult(
             evidence_id=record.evidence_id,
             agent_label=record.evidence_level,
@@ -297,7 +307,17 @@ def _run_cascade_nli(
 
     merged: list[NliResult] = []
     for record, heuristic, transformer, api in zip(records, heuristic_results, transformer_results, api_results):
-        final = _choose_cascade_final(heuristic=heuristic, transformer=transformer, api=api)
+        final = _choose_cascade_final(heuristic=heuristic, transformer=transformer)
+        if api.nli_label != "skipped":
+            api = NliResult(
+                evidence_id=api.evidence_id,
+                agent_label=api.agent_label,
+                nli_label=final.nli_label,
+                score=final.score,
+                backend=api.backend,
+                rationale=api.rationale,
+                stages=api.stages,
+            )
         stages = {
             "heuristic": _stage_payload(heuristic),
             "nli": _stage_payload(transformer),
@@ -317,9 +337,7 @@ def _run_cascade_nli(
     return merged
 
 
-def _choose_cascade_final(*, heuristic: NliResult, transformer: NliResult, api: NliResult) -> NliResult:
-    if api.nli_label not in {"skipped"}:
-        return api
+def _choose_cascade_final(*, heuristic: NliResult, transformer: NliResult) -> NliResult:
     if transformer.nli_label not in {"skipped"}:
         return transformer
     return heuristic
@@ -338,9 +356,9 @@ def _cascade_rationale(*, heuristic: NliResult, transformer: NliResult, api: Nli
     parts = [
         f"heuristic={heuristic.nli_label} ({heuristic.score:.3f})",
         f"nli={transformer.nli_label} ({transformer.score:.3f})",
-        f"llm_api={api.nli_label} ({api.score:.3f})",
+        f"llm_api_rationale={api.nli_label} ({api.score:.3f})",
     ]
-    return "; ".join(parts) + f". Final label selected from {final.backend}."
+    return "; ".join(parts) + f". Final label selected from {final.backend}; LLM API is rationale-only."
 
 
 def _run_transformers_nli(
@@ -454,7 +472,13 @@ def _skipped_nli_results(records: list[EvidenceRecord], *, backend: str, rationa
         for record in records
     ]
 
-def _run_api_nli(records: list[EvidenceRecord], *, model: str | None, env_file: Path | None) -> list[NliResult]:
+def _run_api_nli(
+    records: list[EvidenceRecord],
+    *,
+    model: str | None,
+    env_file: Path | None,
+    prior_stage_results: list[dict[str, Any]] | None = None,
+) -> list[NliResult]:
     config = _load_api_config(env_file=env_file, model=model)
     missing = [key for key in ("NLI_API_KEY", "NLI_API_BASE_URL", "NLI_API_MODEL") if not config.get(key)]
     if config.get("NLI_API_KEY") == "replace_with_your_api_key":
@@ -490,7 +514,9 @@ def _run_api_nli(records: list[EvidenceRecord], *, model: str | None, env_file: 
     timeout = float(config.get("NLI_API_TIMEOUT_SECONDS") or "60")
     results: list[NliResult] = []
     with httpx.Client(timeout=timeout) as client:
-        for record in records:
+        for index, record in enumerate(records):
+            prior_stages = prior_stage_results[index] if prior_stage_results and index < len(prior_stage_results) else None
+            locked_stage = (prior_stages or {}).get("final_without_llm_api") if isinstance(prior_stages, dict) else None
             if record.evidence_level in {"insufficient", "retracted"}:
                 results.append(
                     NliResult(
@@ -507,7 +533,18 @@ def _run_api_nli(records: list[EvidenceRecord], *, model: str | None, env_file: 
                 results.append(_unverifiable(record, "source_excerpt is missing.", backend="api"))
                 continue
             try:
-                results.append(_call_api_nli(client, record, config=config))
+                api_result = _call_api_nli(client, record, config=config, prior_stages=prior_stages)
+                if isinstance(locked_stage, dict) and locked_stage.get("label") not in {None, "skipped"}:
+                    api_result = NliResult(
+                        evidence_id=api_result.evidence_id,
+                        agent_label=api_result.agent_label,
+                        nli_label=str(locked_stage.get("label")),
+                        score=float(locked_stage.get("score") or 0.0),
+                        backend="api",
+                        rationale=api_result.rationale,
+                        stages=api_result.stages,
+                    )
+                results.append(api_result)
             except Exception as exc:  # pragma: no cover - covered by live API runs.
                 results.append(
                     NliResult(
@@ -522,8 +559,9 @@ def _run_api_nli(records: list[EvidenceRecord], *, model: str | None, env_file: 
     return results
 
 
-def _call_api_nli(client: Any, record: EvidenceRecord, *, config: dict[str, str]) -> NliResult:
+def _call_api_nli(client: Any, record: EvidenceRecord, *, config: dict[str, str], prior_stages: dict[str, Any] | None = None) -> NliResult:
     url = _join_url(config["NLI_API_BASE_URL"], config.get("NLI_API_CHAT_PATH") or "/chat/completions")
+    prior_summary = json.dumps(prior_stages or {}, ensure_ascii=False, indent=2)
     payload = {
         "model": config["NLI_API_MODEL"],
         "temperature": float(config.get("NLI_API_TEMPERATURE") or "0"),
@@ -532,9 +570,15 @@ def _call_api_nli(client: Any, record: EvidenceRecord, *, config: dict[str, str]
             {
                 "role": "system",
                 "content": (
-                    "You are an external NLI verifier. Decide whether the source excerpt entails, contradicts, "
-                    "or is neutral toward the claim. Return strict JSON only with keys: "
-                    "label, score, rationale. label must be one of entailment, neutral, contradiction."
+                    "You are the rationale writer for an evidence-chain verifier. Do not change the verifier label. "
+                    "The prior verifier results include final_without_llm_api; that label is locked and authoritative. "
+                    "Your job is to explain the textual relation between Source excerpt and Claim, not to justify the "
+                    "model score. If the locked label is neutral or contradiction, explain exactly why the source cannot "
+                    "support the claim: name the missing entity, metric, condition, causal link, scope, numeric value, "
+                    "direction of effect, or contradicting phrase. If the locked label is entailment, name the exact source "
+                    "text that supports the claim. Do not say merely that the NLI score is high/low or that the model chose "
+                    "a label. Return strict JSON only with keys: label, score, rationale. Set label and score to the locked "
+                    "final_without_llm_api values."
                 ),
             },
             {
@@ -542,7 +586,8 @@ def _call_api_nli(client: Any, record: EvidenceRecord, *, config: dict[str, str]
                 "content": (
                     f"Claim:\n{record.claim}\n\n"
                     f"Source excerpt:\n{record.source_excerpt}\n\n"
-                    "Classify the relation."
+                    f"Prior verifier results:\n{prior_summary}\n\n"
+                    "Return a source-grounded rationale for the locked final_without_llm_api label. Focus on why the source excerpt does or does not support the claim."
                 ),
             },
         ],

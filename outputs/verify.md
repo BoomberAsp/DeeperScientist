@@ -1,27 +1,17 @@
-# Evidence Verification Report
+# Evidence Verification
 
-Quest root: `/home/jackpot/DeepScientist/quests/evidence-demo`
-Evidence records: 1
-
-## Metrics
-
-| Metric | Value |
+| Item | Value |
 |---|---:|
-| agent_nli_agreement_rate | 100.00% |
-| hallucination_rate | 0.00% |
-| unverifiable_rate | 0.00% |
-| citation_completeness | 100.00% |
+| Evidence records | 1 |
+| Cited references | 1 |
+| Layer 1 verified | 1 / 1 |
+| Missing / mismatched / retracted | 0 / 0 / 0 |
+| 🟢 green / 🟡 yellow / 🔴 red | 1 / 0 / 0 |
+| Final hallucination risk | 0.00% |
+| Citation completeness | 100.00% |
 
-## Layer 1 Citation Check
+## Hallucination Detection Table
 
-- Total references: 1
-- Verified: 1
-- Mismatched: 0
-- Missing: 0
-- Retracted but cited: 0
-
-## Layer 2 NLI Check
-
-| Evidence ID | Agent Label | NLI Label | Score | Backend | Rationale |
-|---|---|---|---:|---|---|
-| EVD-0c8841da-001 | supported | entailment | 1.000 | cascade | heuristic=entailment (1.000); nli=entailment (0.990); llm_api=entailment (1.000). Final label selected from api. |
+| Claim | Evidence ID | Before Label | After Label | Status | Action |
+|---|---|---|---|---|---|
+| The model reaches 93.2% accuracy. | EVD-0c8841da-001 | supported | entailment | 🟢 green | keep |

@@ -342,11 +342,21 @@ def test_call_api_nli_uses_openai_compatible_payload() -> None:
             "NLI_API_CHAT_PATH": "/chat/completions",
             "NLI_API_MODEL": "test-model",
         },
+        prior_stages={
+            "heuristic": {"label": "entailment", "score": 1.0, "rationale": "high overlap"},
+            "nli": {"label": "neutral", "score": 0.77, "rationale": "model uncertainty"},
+        },
     )
     assert client.url == "https://example.test/v1/chat/completions"
     assert client.headers["Authorization"] == "Bearer test-key"
     assert client.payload["model"] == "test-model"
     assert "Source excerpt" in client.payload["messages"][1]["content"]
+    assert "Prior verifier results" in client.payload["messages"][1]["content"]
+    assert "model uncertainty" in client.payload["messages"][1]["content"]
+    assert "Do not change the verifier label" in client.payload["messages"][0]["content"]
+    assert "why the source cannot support the claim" in client.payload["messages"][0]["content"]
+    assert "Do not say merely that the NLI score is high/low" in client.payload["messages"][0]["content"]
+    assert "why the source excerpt does or does not support the claim" in client.payload["messages"][1]["content"]
     assert result.backend == "api"
     assert result.nli_label == "entailment"
     assert result.score == 0.88
@@ -387,7 +397,7 @@ def test_cascade_records_heuristic_nli_and_skipped_api(tmp_path: Path, monkeypat
     assert result["stages"]["llm_api"]["label"] == "skipped"
 
 
-def test_cascade_api_final_review_can_override_nli(tmp_path: Path, monkeypatch) -> None:
+def test_cascade_api_is_rationale_only_and_cannot_override_nli(tmp_path: Path, monkeypatch) -> None:
     import deepscientist.artifact.evidence_verifier as ve
 
     quest_root = tmp_path / "quest"
@@ -407,7 +417,10 @@ def test_cascade_api_final_review_can_override_nli(tmp_path: Path, monkeypatch) 
             for record in records
         ]
 
-    def fake_api(records, *, model, env_file):
+    seen_prior_stages = []
+
+    def fake_api(records, *, model, env_file, prior_stage_results=None):
+        seen_prior_stages.extend(prior_stage_results or [])
         return [
             ve.NliResult(
                 evidence_id=record.evidence_id,
@@ -415,7 +428,7 @@ def test_cascade_api_final_review_can_override_nli(tmp_path: Path, monkeypatch) 
                 nli_label="contradiction",
                 score=0.92,
                 backend="api",
-                rationale="fake api contradiction",
+                rationale="fake api contradiction after reviewing NLI support",
             )
             for record in records
         ]
@@ -429,10 +442,16 @@ def test_cascade_api_final_review_can_override_nli(tmp_path: Path, monkeypatch) 
         cascade_api=True,
     )
     result = payload["layer2"]["results"][0]
-    assert result["nli_label"] == "contradiction"
-    assert result["score"] == 0.92
-    assert result["stages"]["llm_api"]["label"] == "contradiction"
-    assert "Final label selected from api" in result["rationale"]
+    assert result["nli_label"] == "entailment"
+    assert result["score"] == 0.83
+    assert result["stages"]["llm_api"]["label"] == "entailment"
+    assert result["stages"]["llm_api"]["score"] == 0.83
+    assert result["stages"]["llm_api"]["rationale"] == "fake api contradiction after reviewing NLI support"
+    assert seen_prior_stages[0]["heuristic"]["label"] == "entailment"
+    assert seen_prior_stages[0]["nli"]["label"] == "entailment"
+    assert seen_prior_stages[0]["nli"]["rationale"] == "fake nli support"
+    assert seen_prior_stages[0]["final_without_llm_api"]["label"] == "entailment"
+    assert "LLM API is rationale-only" in result["rationale"]
 
 
 
