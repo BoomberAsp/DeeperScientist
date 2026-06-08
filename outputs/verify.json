@@ -1,0 +1,102 @@
+{
+  "ok": true,
+  "quest_root": "/home/jackpot/DeepScientist/quests/evidence-demo",
+  "evidence_total": 1,
+  "layer1": {
+    "ok": true,
+    "total_references": 1,
+    "verified": [
+      "EVD-0c8841da-001"
+    ],
+    "verified_count": 1,
+    "mismatched": [],
+    "mismatched_count": 0,
+    "missing": [],
+    "missing_count": 0,
+    "retracted_but_cited": [],
+    "retracted_but_cited_count": 0,
+    "unreferenced": []
+  },
+  "layer2": {
+    "backend": "cascade",
+    "verification_scope": "report_claim_occurrences",
+    "claim_occurrence_count": 1,
+    "claim_occurrences": [
+      {
+        "occurrence_id": "CLAIM-001",
+        "evidence_id": "EVD-0c8841da-001",
+        "claimed_level": "supported",
+        "report_claim": "The model reaches 93.2% accuracy.",
+        "section_title": "Demo Report",
+        "line_number": 3,
+        "reference_text": "[EVD-0c8841da-001:supported]"
+      }
+    ],
+    "results": [
+      {
+        "evidence_id": "EVD-0c8841da-001",
+        "agent_label": "supported",
+        "nli_label": "entailment",
+        "score": 0.9901216626167297,
+        "backend": "cascade",
+        "rationale": "heuristic=entailment (1.000); nli=entailment (0.990); llm_api_rationale=entailment (0.990). Final label selected from transformers; LLM API is rationale-only.",
+        "stages": {
+          "heuristic": {
+            "label": "entailment",
+            "score": 1.0,
+            "backend": "heuristic",
+            "rationale": "High token overlap and numeric values are covered by the excerpt."
+          },
+          "nli": {
+            "label": "entailment",
+            "score": 0.9901216626167297,
+            "backend": "transformers",
+            "rationale": "Best model label: entailment"
+          },
+          "llm_api": {
+            "label": "entailment",
+            "score": 0.9901216626167297,
+            "backend": "api",
+            "rationale": "The source excerpt explicitly states \"The model reaches 93.2% accuracy,\" which exactly matches the claim's wording and specific metric, directly supporting it."
+          }
+        },
+        "occurrence_id": "CLAIM-001",
+        "claimed_level": "supported",
+        "report_claim": "The model reaches 93.2% accuracy.",
+        "recorded_claim": "The model reaches 93.2% accuracy.",
+        "section_title": "Demo Report",
+        "line_number": 3,
+        "verification_status": "green",
+        "recommended_action": "keep",
+        "risk_reason": "Source excerpt directly supports the report claim.",
+        "before_agent_label": "supported",
+        "before_agent_confidence": "self_supported",
+        "external_label": "entailment",
+        "label_delta": "supported -> entailment / green",
+        "hallucination_effect": "unchanged_supported",
+        "final_publish_decision": "keep_as_supported"
+      }
+    ]
+  },
+  "metrics": {
+    "agent_nli_agreement_rate": 1.0,
+    "hallucination_rate": 0.0,
+    "unverifiable_rate": 0.0,
+    "citation_completeness": 1.0,
+    "claim_sentence_estimate": 1,
+    "evidence_citation_count": 1,
+    "no_evidence_count": 0,
+    "verified_claim_count": 1,
+    "green_supported_count": 1,
+    "yellow_uncertain_count": 0,
+    "red_error_count": 0,
+    "green_supported_rate": 1.0,
+    "yellow_uncertain_rate": 0.0,
+    "red_error_rate": 0.0,
+    "semantic_risk_rate": 0.0,
+    "unsupported_claim_count": 0,
+    "downgraded_claim_count": 0,
+    "removed_claim_count": 0,
+    "final_hallucination_rate": 0.0
+  }
+}

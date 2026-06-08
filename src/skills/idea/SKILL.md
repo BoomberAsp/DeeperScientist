@@ -9,6 +9,17 @@ skill_role: stage
 Use this skill to turn the current baseline and problem frame into concrete, literature-grounded, frontier-aware, testable directions.
 The goal is to choose the next executable research route, not to maximize brainstorming volume or reward shallow novelty.
 
+When the active task is an evidence-chain hallucination comparison, a before/after benchmark, or a demo whose success criterion is showing reduced hallucination rather than producing a publishable research idea, switch to `concise comparison mode`.
+In this mode, keep idea work intentionally shallow and controlled:
+
+- read only the user-provided papers plus the minimum adjacent source needed for one plausible connection
+- produce one selected idea and one hypothesis, or at most two alternatives if needed for contrast
+- keep the report short and evidence-labeled instead of aiming for manuscript defensibility
+- for evidence-chain benchmarks, keep room for `Before Hallucination Table`, `After Evidence-Chain Hallucination Table`, and `Final After Report`
+- do not split benchmarks across runs; return the verifier's combined comparison markdown in the same chat response
+- skip broad survey floors, raw idea slates, pre-idea drafts, paper outline seeding, parking lots, and long novelty/risk analysis
+- do not optimize for a brilliant idea; optimize for a clean before/after hallucination measurement artifact
+
 When `startup_contract.need_research_paper = false` and the quest already has a concrete optimization handle, `idea` may stop after selecting or seeding a direction and then hand off into `optimize` instead of insisting on the full paper-oriented ideation loop.
 In that algorithm-first case, `idea` should usually produce a small method-brief frontier and then defer candidate ranking, promotion, and bounded search to `optimize`.
 When doing that handoff, prefer the brief-shaping discipline later used by `optimize`: clarify the bottleneck and constraints, keep only a small differentiated `2-3` option slate, and hand off a recommended brief rather than a pile of loose intuitions.

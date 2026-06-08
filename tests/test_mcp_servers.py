@@ -420,6 +420,12 @@ def test_artifact_mcp_server_tools_cover_core_flows(temp_home: Path) -> None:
             "render_git_graph",
             "interact",
             "complete_quest",
+            "evidence_record",
+            "evidence_list",
+            "evidence_get",
+            "evidence_update",
+            "evidence_verify",
+            "evidence_index_snapshot",
         ]
         tool_map = {tool.name: tool for tool in tools}
         assert tool_map["get_quest_state"].annotations.readOnlyHint is True

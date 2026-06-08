@@ -707,11 +707,24 @@ class QQConnectorBridge(BaseConnectorBridge):
             body["msg_seq"] = msg_seq
         if reply_to_message_id:
             body["msg_id"] = reply_to_message_id
-        return self._post_json(
+        result = self._post_json(
             endpoint=self._message_endpoint(chat_type, chat_id),
             access_token=access_token,
             body=body,
         )
+        if reply_to_message_id and self._is_invalid_reply_target(result):
+            body.pop("msg_id", None)
+            body.pop("msg_seq", None)
+            retry_result = self._post_json(
+                endpoint=self._message_endpoint(chat_type, chat_id),
+                access_token=access_token,
+                body=body,
+            )
+            retry_result["fallback_without_reply_to"] = True
+            if not retry_result.get("ok", False) and not retry_result.get("error"):
+                retry_result["error"] = str(result.get("error") or "QQ reply target was rejected.").strip()
+            return retry_result
+        return result
 
     def _send_media_attachment(
         self,
@@ -771,9 +784,25 @@ class QQConnectorBridge(BaseConnectorBridge):
             access_token=access_token,
             body=message_body,
         )
+        if reply_to_message_id and self._is_invalid_reply_target(send_result):
+            message_body.pop("msg_id", None)
+            message_body.pop("msg_seq", None)
+            send_result = self._post_json(
+                endpoint=self._message_endpoint(chat_type, chat_id),
+                access_token=access_token,
+                body=message_body,
+            )
+            send_result["fallback_without_reply_to"] = True
         if not send_result.get("ok", False):
             send_result["error"] = str(send_result.get("error") or "QQ media message send failed.").strip()
         return send_result
+
+    @staticmethod
+    def _is_invalid_reply_target(result: dict[str, Any]) -> bool:
+        payload = result.get("payload") if isinstance(result.get("payload"), dict) else {}
+        code = str(payload.get("code") or payload.get("err_code") or "").strip()
+        message = str(result.get("error") or payload.get("message") or "").strip()
+        return result.get("status_code") == 400 and (code == "40034024" or "msg_id" in message)
 
     @staticmethod
     def _file_data_payload(path: Path, *, media_kind: str) -> tuple[str, str]:
@@ -786,38 +815,47 @@ class QQConnectorBridge(BaseConnectorBridge):
         request = Request(endpoint, data=json.dumps(body, ensure_ascii=False).encode("utf-8"), method="POST")
         request.add_header("Content-Type", "application/json; charset=utf-8")
         request.add_header("Authorization", f"QQBot {access_token}")
-        try:
-            with urlopen(request, timeout=8) as response:  # noqa: S310
-                response_text = response.read().decode("utf-8", errors="replace")
-                payload = json.loads(response_text) if response_text else {}
+        last_error: str | None = None
+        for attempt in range(1, 4):
+            try:
+                with urlopen(request, timeout=8) as response:  # noqa: S310
+                    response_text = response.read().decode("utf-8", errors="replace")
+                    payload = json.loads(response_text) if response_text else {}
+                    return {
+                        "ok": 200 <= response.status < 300,
+                        "status_code": response.status,
+                        "response": response_text[:500],
+                        "payload": payload if isinstance(payload, dict) else {},
+                        "message_id": str((payload or {}).get("id") or "").strip() or None,
+                        "attempts": attempt,
+                    }
+            except HTTPError as exc:
+                response_text = exc.read().decode("utf-8", errors="replace")
+                try:
+                    payload = json.loads(response_text) if response_text else {}
+                except json.JSONDecodeError:
+                    payload = {}
                 return {
-                    "ok": 200 <= response.status < 300,
-                    "status_code": response.status,
+                    "ok": False,
+                    "status_code": exc.code,
                     "response": response_text[:500],
                     "payload": payload if isinstance(payload, dict) else {},
-                    "message_id": str((payload or {}).get("id") or "").strip() or None,
+                    "error": str((payload or {}).get("message") or response_text or exc.reason).strip() or "QQ HTTP error",
+                    "attempts": attempt,
                 }
-        except HTTPError as exc:
-            response_text = exc.read().decode("utf-8", errors="replace")
-            try:
-                payload = json.loads(response_text) if response_text else {}
-            except json.JSONDecodeError:
-                payload = {}
-            return {
-                "ok": False,
-                "status_code": exc.code,
-                "response": response_text[:500],
-                "payload": payload if isinstance(payload, dict) else {},
-                "error": str((payload or {}).get("message") or response_text or exc.reason).strip() or "QQ HTTP error",
-            }
-        except Exception as exc:  # pragma: no cover - defensive network transport guard
-            return {
-                "ok": False,
-                "status_code": None,
-                "response": None,
-                "payload": {},
-                "error": str(exc),
-            }
+            except Exception as exc:  # pragma: no cover - defensive network transport guard
+                last_error = str(exc)
+                if attempt < 3:
+                    time.sleep(0.75 * attempt)
+                    continue
+        return {
+            "ok": False,
+            "status_code": None,
+            "response": None,
+            "payload": {},
+            "error": last_error or "QQ transport error",
+            "attempts": 3,
+        }
 
     @classmethod
     def _access_token(cls, app_id: str, app_secret: str) -> str:

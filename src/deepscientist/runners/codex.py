@@ -90,6 +90,12 @@ _BUILTIN_MCP_TOOL_APPROVALS: dict[str, tuple[str, ...]] = {
         "render_git_graph",
         "interact",
         "complete_quest",
+        "evidence_record",
+        "evidence_update",
+        "evidence_list",
+        "evidence_get",
+        "evidence_verify",
+        "evidence_index_snapshot",
     ),
     "bash_exec": (
         "bash_exec",

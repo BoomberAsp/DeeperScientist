@@ -94,6 +94,10 @@ def test_generic_new_command_replies_with_bound_quest_and_restore_hint(
     assert quest_id
     assert "prepare a baseline audit" in str(payload["text"] or "")
     assert "自动使用这个新 quest 保持连接" in str(payload["text"] or "")
+    snapshot = app.quest_service.snapshot(quest_id)
+    assert snapshot["workspace_mode"] == "copilot"
+    listed = {item["quest_id"]: item for item in app.quest_service.list_quests()}
+    assert listed[quest_id]["listed_in_projects"] is True
     history = app.quest_service.history(quest_id)
     assert history
     assert history[-1]["content"] == "prepare a baseline audit"

@@ -472,6 +472,28 @@ artifact 名字虽然多，但本质上还是一个家族。
 - `artifact.interact(...)`
 - `artifact.complete_quest(...)`
 
+#### G. 证据校验
+
+- `artifact.evidence_record(...)`
+- `artifact.evidence_list(...)`
+- `artifact.evidence_verify(...)`
+
+`artifact.evidence_verify(...)` 会分两层检查文中的 `[EVD-xxx:level]` 引用：
+
+- Layer 1 检查缺失 id、level 不匹配和已撤回证据。
+- Layer 2 用配置的 backend 检查语义支持关系。
+
+默认 cascade verifier 会先跑启发式检查，并在安装可选 NLI 依赖后使用本地 NLI 模型。源码安装可以这样补齐：
+
+```bash
+pip install 'deepscientist[nli]'
+```
+
+校验产物会区分审计版和发布版：
+
+- `*-annotated-report.md` 保留原始 draft，并在后面追加 hallucination table。
+- `*-publishable-report.md` 会把 yellow/red 的 EVD 引用替换成 `[NO_EVIDENCE]`，避免不确定证据继续在最终可发布文本中被当作 support 引用。
+
 对长时间协作来说，最重要的 artifact 工具是：
 
 - `artifact.interact(...)`

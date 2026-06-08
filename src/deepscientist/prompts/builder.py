@@ -25,40 +25,40 @@ COMPANION_SKILLS = companion_skill_ids(repo_root())
 
 STAGE_MEMORY_PLAN = {
     "scout": {
-        "quest": ("papers", "knowledge", "decisions"),
-        "global": ("papers", "knowledge", "templates"),
+        "quest": ("papers", "evidence", "knowledge", "decisions"),
+        "global": ("papers", "evidence", "knowledge", "templates"),
     },
     "baseline": {
-        "quest": ("papers", "decisions", "episodes", "knowledge"),
-        "global": ("knowledge", "templates", "papers"),
+        "quest": ("papers", "evidence", "decisions", "episodes", "knowledge"),
+        "global": ("knowledge", "evidence", "templates", "papers"),
     },
     "idea": {
-        "quest": ("papers", "ideas", "decisions", "knowledge"),
-        "global": ("papers", "knowledge", "templates"),
+        "quest": ("papers", "ideas", "evidence", "decisions", "knowledge"),
+        "global": ("papers", "evidence", "knowledge", "templates"),
     },
     "optimize": {
-        "quest": ("episodes", "decisions", "ideas", "knowledge"),
-        "global": ("knowledge", "templates"),
+        "quest": ("episodes", "evidence", "decisions", "ideas", "knowledge"),
+        "global": ("knowledge", "evidence", "templates"),
     },
     "experiment": {
-        "quest": ("ideas", "decisions", "episodes", "knowledge"),
-        "global": ("knowledge", "templates"),
+        "quest": ("ideas", "evidence", "decisions", "episodes", "knowledge"),
+        "global": ("knowledge", "evidence", "templates"),
     },
     "analysis-campaign": {
-        "quest": ("ideas", "decisions", "episodes", "knowledge", "papers"),
-        "global": ("knowledge", "templates", "papers"),
+        "quest": ("ideas", "evidence", "decisions", "episodes", "knowledge", "papers"),
+        "global": ("knowledge", "evidence", "templates", "papers"),
     },
     "write": {
-        "quest": ("papers", "decisions", "knowledge", "ideas"),
-        "global": ("templates", "knowledge", "papers"),
+        "quest": ("papers", "evidence", "decisions", "knowledge", "ideas"),
+        "global": ("templates", "knowledge", "evidence", "papers"),
     },
     "finalize": {
-        "quest": ("decisions", "knowledge", "episodes"),
-        "global": ("knowledge", "templates"),
+        "quest": ("decisions", "evidence", "knowledge", "episodes"),
+        "global": ("knowledge", "evidence", "templates"),
     },
     "decision": {
-        "quest": ("decisions", "knowledge", "episodes", "ideas"),
-        "global": ("knowledge", "templates"),
+        "quest": ("decisions", "evidence", "knowledge", "episodes", "ideas"),
+        "global": ("knowledge", "evidence", "templates"),
     },
 }
 
@@ -147,6 +147,12 @@ class PromptBuilder:
             Path("contracts") / "shared_interaction.md",
             quest_root=quest_root,
         )
+        evidence_tracking_block = ""
+        if not os.environ.get("DEEPSCIENTIST_SKIP_EVIDENCE_TRACKING"):
+            evidence_tracking_block = self._prompt_fragment(
+                Path("contracts") / "evidence_tracking.md",
+                quest_root=quest_root,
+            )
         admin_ops_contract_block = ""
         admin_ops_knowledge_block = ""
         admin_ops_session_block = ""
@@ -174,6 +180,8 @@ class PromptBuilder:
             system_block,
             "",
             shared_interaction_block,
+            "",
+            evidence_tracking_block,
             "",
         ]
         if admin_ops_contract_block:

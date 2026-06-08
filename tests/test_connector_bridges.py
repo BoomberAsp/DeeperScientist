@@ -145,6 +145,41 @@ def test_bridge_direct_outbound_qq_uses_openid_and_group_openid(monkeypatch, tem
     assert all(headers.get("Authorization") == "QQBot qq-access-token" for headers in send_headers)
 
 
+def test_bridge_direct_outbound_qq_retries_transient_transport_errors(monkeypatch, temp_home: Path) -> None:
+    QQConnectorBridge._token_cache = {}
+    _app, _quest_id = _setup_app(
+        temp_home,
+        connector_name="qq",
+        extra={"app_id": "1903299925", "app_secret": "qq-secret"},
+    )
+    app = DaemonApp(temp_home)
+
+    attempts: list[str] = []
+
+    def fake_urlopen(request, timeout=8):  # noqa: ANN001
+        attempts.append(request.full_url)
+        if request.full_url == "https://bots.qq.com/app/getAppAccessToken":
+            return _FakeResponse('{"access_token":"qq-access-token","expires_in":7200}', status=200)
+        if sum(1 for url in attempts if url.startswith("https://api.sgroup.qq.com/v2/")) == 1:
+            raise TimeoutError("handshake operation timed out")
+        return _FakeResponse('{"id":"msg-retried","timestamp":"1741440002"}', status=200)
+
+    monkeypatch.setattr("deepscientist.bridges.connectors.urlopen", fake_urlopen)
+    monkeypatch.setattr("deepscientist.bridges.connectors.time.sleep", lambda _seconds: None)
+
+    result = app.channels["qq"].send(
+        {
+            "conversation_id": "qq:direct:user-openid-retry",
+            "message": "QQ retry hello",
+        }
+    )
+
+    delivery = result["delivery"]
+    assert delivery["ok"] is True
+    assert delivery["parts"][0]["attempts"] == 2
+    assert sum(1 for url in attempts if url.startswith("https://api.sgroup.qq.com/v2/")) == 2
+
+
 def test_bridge_direct_outbound_qq_supports_markdown_mode(monkeypatch, temp_home: Path) -> None:
     QQConnectorBridge._token_cache = {}
     _app, _quest_id = _setup_app(

@@ -1,0 +1,24 @@
+{
+  "ok": true,
+  "total": 1,
+  "by_level": {
+    "supported": 1,
+    "inferred": 0,
+    "insufficient": 0,
+    "retracted": 0
+  },
+  "records": [
+    {
+      "evidence_id": "EVD-0c8841da-001",
+      "title": "Demo accuracy evidence",
+      "claim": "The model reaches 93.2% accuracy.",
+      "evidence_level": "supported",
+      "source_type": "experiment_result",
+      "source_location": "manual demo result",
+      "source_excerpt": "The model reaches 93.2% accuracy.",
+      "claim_relation": "The excerpt directly states the same accuracy claim.",
+      "path": "artifacts/evidence/EVD-0c8841da-001.md",
+      "timestamp": "2026-06-02T11:30:48+00:00"
+    }
+  ]
+}

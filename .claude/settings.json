@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c ' *)",
+      "Bash(python -m pytest tests/test_evidence_tracking.py tests/test_evidence_validation_c.py -q)",
+      "Bash(mkdir -p /Users/ayan/DeeperScientist/outputs/d-verify/quest/artifacts/evidence)",
+      "Bash(mkdir -p /Users/ayan/DeeperScientist/outputs/d-verify/quest/.ds)",
+      "Bash(PYTHONPATH=src:scripts python -m deepscientist.artifact.evidence_table --quest-root /Users/ayan/DeeperScientist/outputs/d-verify/quest --md-out /Users/ayan/DeeperScientist/outputs/d-verify/evidence_table.md --json-out /Users/ayan/DeeperScientist/outputs/d-verify/evidence_table.json)"
+    ]
+  }
+}

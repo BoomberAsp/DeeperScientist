@@ -5553,6 +5553,10 @@ class DaemonApp:
                     source=f"{connector_name}:connector",
                     announce_connector_binding=True,
                     exclude_conversation_id=conversation_id,
+                    startup_contract={
+                        "workspace_mode": "copilot",
+                        "decision_policy": "user_gated",
+                    },
                 )
                 self.update_quest_binding(created["quest_id"], binding_conversation_id, force=True)
                 startup = self.submit_user_message(
@@ -7098,7 +7102,8 @@ class DaemonApp:
             zh=(
                 f"开工啦！新的 Quest `{quest_id}` 已经建好啦。\n"
                 f"这轮我先做这件事：{goal_preview}\n"
-                f"后面的进展我都会直接在这里同步给您。"
+                f"后面的进展我都会直接在这里同步给您，"
+                f"并自动使用这个新 quest 保持连接。"
             )
             + restore_zh,
             en=(

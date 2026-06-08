@@ -472,6 +472,28 @@ The artifact namespace is large, but it is still one family.
 - `artifact.interact(...)`
 - `artifact.complete_quest(...)`
 
+#### G. Evidence verification
+
+- `artifact.evidence_record(...)`
+- `artifact.evidence_list(...)`
+- `artifact.evidence_verify(...)`
+
+`artifact.evidence_verify(...)` checks cited `[EVD-xxx:level]` references in two layers:
+
+- Layer 1 checks missing ids, level mismatches, and retracted evidence.
+- Layer 2 checks semantic support with the configured backend.
+
+The default cascade verifier uses heuristic checks plus a local NLI model when the optional NLI dependencies are installed. Source installs can add them with:
+
+```bash
+pip install 'deepscientist[nli]'
+```
+
+Verification artifacts separate audit from publication:
+
+- `*-annotated-report.md` preserves the original draft and appends the hallucination table.
+- `*-publishable-report.md` replaces yellow/red EVD citations with `[NO_EVIDENCE]` so uncertain evidence is not still cited as support in the final publishable text.
+
 The most important artifact tool for long-running collaboration is:
 
 - `artifact.interact(...)`

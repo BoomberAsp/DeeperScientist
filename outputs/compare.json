@@ -1,0 +1,22 @@
+{
+  "ok": true,
+  "before": {
+    "claim_sentence_estimate": 2,
+    "evidence_citation_count": 0,
+    "no_evidence_count": 0,
+    "citation_completeness": 0.0,
+    "unsupported_visible_rate": 0.0
+  },
+  "after": {
+    "claim_sentence_estimate": 2,
+    "evidence_citation_count": 1,
+    "no_evidence_count": 1,
+    "citation_completeness": 0.5,
+    "unsupported_visible_rate": 0.5
+  },
+  "delta": {
+    "citation_completeness": 0.5,
+    "evidence_citation_count": 1,
+    "no_evidence_count": 1
+  }
+}

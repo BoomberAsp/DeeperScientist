@@ -2569,6 +2569,182 @@ def build_artifact_server(context: McpContext) -> FastMCP:
             return finalize_state_changing_artifact_tool(result, tool_name="complete_quest")
         return result
 
+    # ========== Evidence Chain Tracking Tools ==========
+
+    @server.tool(
+        name="evidence_record",
+        description=(
+            "Record an evidence entry for the evidence chain tracking module. "
+            "Call this EVERY TIME you complete a tool invocation (bash_exec, arxiv, URL fetch, memory.read, etc.) "
+            "that yields factual claims. "
+            "Each entry links a claim to its source and assigns an evidence level: "
+            "supported (source directly proves the claim), "
+            "inferred (reasonable extrapolation but not directly proven), "
+            "insufficient (source is inadequate to support the claim). "
+            "IMPORTANT: When evidence_level is 'supported' or 'inferred', you MUST provide "
+            "source_excerpt — a verbatim quote from the source. This is required for "
+            "independent fact-checking. Without it, the record will be REJECTED."
+        ),
+    )
+    def evidence_record(
+        title: str = "",
+        source_type: str = "",
+        source_location: str = "",
+        source_content_hash: str = "",
+        claim: str = "",
+        evidence_level: str = "supported",
+        tool_call_id: str = "",
+        tool_invocation: str = "",
+        source_excerpt: str = "",
+        claim_relation: str = "",
+    ) -> dict[str, Any]:
+        return service.record_evidence(
+            context.require_quest_root(),
+            title=title,
+            source_type=source_type,
+            source_location=source_location,
+            source_content_hash=source_content_hash,
+            claim=claim,
+            evidence_level=evidence_level,
+            tool_call_id=tool_call_id,
+            tool_invocation=tool_invocation,
+            source_excerpt=source_excerpt,
+            claim_relation=claim_relation,
+        )
+
+    @server.tool(
+        name="evidence_list",
+        description=(
+            "List all evidence records from INDEX.md. "
+            "Use before generating reports to get an overview of available evidence. "
+            "Can filter by evidence_level (supported/inferred/insufficient) or source_type."
+        ),
+        annotations=_read_only_tool_annotations(title="List evidence records"),
+    )
+    def evidence_list(
+        evidence_level: str | None = None,
+        source_type: str | None = None,
+    ) -> dict[str, Any]:
+        return service.list_evidence(
+            context.require_quest_root(),
+            evidence_level=evidence_level,
+            source_type=source_type,
+        )
+
+    @server.tool(
+        name="evidence_get",
+        description=(
+            "Read a single evidence record by evidence_id (e.g., 'EVD-a1b2c3-001'). "
+            "Returns the full frontmatter metadata and body."
+        ),
+        annotations=_read_only_tool_annotations(title="Get evidence detail"),
+    )
+    def evidence_get(evidence_id: str = "") -> dict[str, Any]:
+        if not evidence_id.strip():
+            return {"ok": False, "error": "evidence_id is required"}
+        return service.get_evidence(
+            context.require_quest_root(),
+            evidence_id=evidence_id.strip(),
+        )
+
+    @server.tool(
+        name="evidence_update",
+        description=(
+            "Update an existing evidence entry's metadata. "
+            "Use this when new information supplements or corrects a previously recorded evidence entry "
+            "(e.g., a more precise source location is found, or the evidence_level needs to be changed). "
+            "Only the non-None fields will be updated. "
+            "To mark evidence as invalid, set evidence_level='retracted' rather than deleting."
+        ),
+    )
+    def evidence_update(
+        evidence_id: str = "",
+        title: str | None = None,
+        source_type: str | None = None,
+        source_location: str | None = None,
+        source_content_hash: str | None = None,
+        claim: str | None = None,
+        evidence_level: str | None = None,
+        source_excerpt: str | None = None,
+        claim_relation: str | None = None,
+    ) -> dict[str, Any]:
+        if not evidence_id.strip():
+            return {"ok": False, "error": "evidence_id is required"}
+        return service.update_evidence(
+            context.require_quest_root(),
+            evidence_id=evidence_id.strip(),
+            title=title,
+            source_type=source_type,
+            source_location=source_location,
+            source_content_hash=source_content_hash,
+            claim=claim,
+            evidence_level=evidence_level,
+            source_excerpt=source_excerpt,
+            claim_relation=claim_relation,
+        )
+
+    @server.tool(
+        name="evidence_verify",
+        description=(
+            "Run the integrated evidence verification workflow before publishing a research summary, "
+            "handoff, paper-facing report, or any user-visible answer that cites [EVD-xxx:level]. "
+            "This replaces the old placeholder citation checker. It performs Layer 1 citation integrity checks "
+            "(missing IDs, level mismatches, retracted citations, unreferenced evidence), optionally includes an "
+            "evidence table, then performs Layer 2 semantic verification using verification_mode. "
+            "Default verification_mode='cascade' runs heuristic first, then a local NLI model from ModelScope; "
+            "cascade_api defaults to true so the configured LLM API adds source-grounded rationale without changing labels. "
+            "Set cascade_api=false only when the user wants to skip remote LLM rationale generation. "
+            "For one-turn before/after hallucination benchmarks, pass before_output_text and comparison_mode=true; "
+            "the tool then returns before_detection_markdown, after_detection_markdown, and comparison_markdown. "
+            "The tool returns structured results plus user_visible_markdown. After calling it, fix missing, mismatched, "
+            "retracted, neutral, contradiction, or unverifiable items before publishing. The verification summary should "
+            "be visible to the user when reporting evidence-backed conclusions. Use publishable_report_markdown, not "
+            "annotated_report_markdown, when yellow/red citations must not remain cited as support."
+        ),
+    )
+    def evidence_verify(
+        agent_output_text: str = "",
+        verification_mode: str = "cascade",
+        include_evidence_table: bool = True,
+        cascade_api: bool = True,
+        model_source: str = "modelscope",
+        model: str | None = None,
+        modelscope_model: str | None = "cross-encoder/nli-roberta-base",
+        env_file: str | None = ".env",
+        write_artifacts: bool = True,
+        artifact_prefix: str = "evidence_verify",
+        before_output_text: str = "",
+        comparison_mode: bool = False,
+    ) -> dict[str, Any]:
+        if not agent_output_text.strip():
+            return {"ok": False, "error": "agent_output_text is required"}
+        return service.verify_evidence_claims(
+            context.require_quest_root(),
+            agent_output_text=agent_output_text,
+            verification_mode=verification_mode,
+            include_evidence_table=include_evidence_table,
+            cascade_api=cascade_api,
+            model_source=model_source,
+            model=model,
+            modelscope_model=modelscope_model,
+            env_file=env_file,
+            write_artifacts=write_artifacts,
+            artifact_prefix=artifact_prefix,
+            before_output_text=before_output_text,
+            comparison_mode=comparison_mode,
+        )
+
+    @server.tool(
+        name="evidence_index_snapshot",
+        description=(
+            "Return the full INDEX.md content parsed as structured JSON. "
+            "Use for debugging or programmatic evidence table generation."
+        ),
+        annotations=_read_only_tool_annotations(title="Snapshot evidence index"),
+    )
+    def evidence_index_snapshot() -> dict[str, Any]:
+        return service.index_snapshot(context.require_quest_root())
+
     return server
 
 
