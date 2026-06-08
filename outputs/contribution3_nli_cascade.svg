@@ -1,0 +1,125 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="500" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#94a3b8"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect x="0" y="0" width="720" height="500" rx="10" fill="#fafbfc"/>
+  <rect x="0" y="0" width="720" height="500" rx="10" fill="none" stroke="#d0d5dd" stroke-width="1.5"/>
+
+  <!-- Title -->
+  <text x="360" y="32" font-size="16" fill="#0f172a" font-weight="bold" text-anchor="middle">
+    Contribution 3: Semantic Verifiability via External NLI Cascade
+  </text>
+  <text x="360" y="52" font-size="11" fill="#64748b" text-anchor="middle">
+    Independent judgment of whether source_excerpt actually supports the claim — reducing agent self-assessment hallucination
+  </text>
+
+  <!-- ====== LEFT: Agent Output ====== -->
+  <rect x="20" y="72" width="195" height="180" rx="6" fill="#ffffff" stroke="#d0d5dd" stroke-width="1"/>
+  <text x="117" y="94" font-size="11" fill="#2563eb" font-weight="bold" text-anchor="middle">Agent Output</text>
+
+  <!-- Claim box -->
+  <rect x="30" y="106" width="175" height="55" rx="4" fill="#f1f5f9"/>
+  <text x="38" y="122" font-size="9" fill="#b45309">claim:</text>
+  <text x="38" y="138" font-size="9" fill="#1e293b">"The model reaches</text>
+  <text x="38" y="152" font-size="9" fill="#1e293b"> 93.2% accuracy."</text>
+
+  <!-- Agent label -->
+  <rect x="30" y="170" width="175" height="30" rx="4" fill="#dcfce7" stroke="#22c55e" stroke-width="1"/>
+  <text x="117" y="189" font-size="9" fill="#16a34a" text-anchor="middle">Agent self-label: supported ✓</text>
+
+  <!-- Source excerpt -->
+  <rect x="30" y="208" width="175" height="36" rx="4" fill="#f1f5f9"/>
+  <text x="38" y="222" font-size="8" fill="#64748b">source_excerpt:</text>
+  <text x="38" y="236" font-size="8" fill="#b45309">"The model reaches 93.2%"</text>
+
+  <!-- Arrow: Agent → NLI -->
+  <line x1="215" y1="162" x2="250" y2="162" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- ====== CENTER: NLI Cascade ====== -->
+  <rect x="258" y="72" width="240" height="220" rx="6" fill="#ffffff" stroke="#d0d5dd" stroke-width="1"/>
+  <text x="378" y="94" font-size="11" fill="#d97706" font-weight="bold" text-anchor="middle">NLI Cascade Verification</text>
+
+  <!-- Stage 1: Heuristic -->
+  <rect x="270" y="108" width="216" height="48" rx="4" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1"/>
+  <text x="280" y="124" font-size="9" fill="#2563eb" font-weight="bold">Stage 1: Heuristic</text>
+  <text x="410" y="124" font-size="8" fill="#16a34a">→ entailment (1.000)</text>
+  <text x="280" y="140" font-size="8" fill="#64748b">Token overlap + numeric value match</text>
+  <text x="280" y="152" font-size="8" fill="#64748b">High overlap → passes to Stage 2</text>
+
+  <!-- Arrow down -->
+  <line x1="378" y1="156" x2="378" y2="166" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Stage 2: Transformers NLI -->
+  <rect x="270" y="168" width="216" height="48" rx="4" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1"/>
+  <text x="280" y="184" font-size="9" fill="#2563eb" font-weight="bold">Stage 2: DeBERTa-v3 NLI</text>
+  <text x="410" y="184" font-size="8" fill="#16a34a">→ entailment (0.990)</text>
+  <text x="280" y="200" font-size="8" fill="#64748b">Semantic reasoning: premise → hypothesis</text>
+  <text x="280" y="212" font-size="8" fill="#64748b">High confidence → passes to Stage 3</text>
+
+  <!-- Arrow down -->
+  <line x1="378" y1="216" x2="378" y2="226" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Stage 3: LLM API -->
+  <rect x="270" y="228" width="216" height="48" rx="4" fill="#eff6ff" stroke="#93c5fd" stroke-width="1"/>
+  <text x="280" y="244" font-size="9" fill="#2563eb" font-weight="bold">Stage 3: LLM API (GPT-4)</text>
+  <text x="410" y="244" font-size="8" fill="#16a34a">→ entailment (1.000)</text>
+  <text x="280" y="260" font-size="8" fill="#64748b">"The source excerpt is identical to the claim,</text>
+  <text x="280" y="272" font-size="8" fill="#64748b"> explicitly stating 93.2% accuracy."</text>
+
+  <!-- Arrow: NLI → Verdict -->
+  <line x1="498" y1="182" x2="535" y2="182" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- ====== RIGHT: Verdict ====== -->
+  <rect x="543" y="72" width="160" height="180" rx="6" fill="#ffffff" stroke="#d0d5dd" stroke-width="1"/>
+  <text x="623" y="94" font-size="11" fill="#16a34a" font-weight="bold" text-anchor="middle">Final Judgment</text>
+
+  <!-- Comparison table -->
+  <rect x="555" y="108" width="136" height="28" rx="3" fill="#f1f5f9"/>
+  <text x="563" y="126" font-size="8" fill="#334155">Agent</text>
+  <text x="620" y="126" font-size="8" fill="#16a34a">supported</text>
+
+  <rect x="555" y="140" width="136" height="28" rx="3" fill="#f8fafc"/>
+  <text x="563" y="158" font-size="8" fill="#334155">NLI</text>
+  <text x="620" y="158" font-size="8" fill="#16a34a">entailment</text>
+
+  <!-- Agreement badge -->
+  <rect x="570" y="180" width="106" height="22" rx="11" fill="#dcfce7" stroke="#22c55e" stroke-width="1"/>
+  <text x="623" y="195" font-size="9" fill="#16a34a" font-weight="bold" text-anchor="middle">✓ Agreement</text>
+
+  <text x="623" y="230" font-size="8" fill="#64748b" text-anchor="middle">Agent-NLI consensus:</text>
+  <text x="623" y="244" font-size="8" fill="#16a34a" text-anchor="middle">claim is verified</text>
+
+  <!-- ====== BOTTOM: Key insight ====== -->
+  <rect x="20" y="310" width="680" height="1" fill="#e2e8f0"/>
+
+  <text x="360" y="345" font-size="12" fill="#b45309" font-weight="bold" text-anchor="middle">Why This Matters</text>
+
+  <!-- Three scenarios -->
+  <!-- Good case -->
+  <rect x="25" y="365" width="210" height="115" rx="6" fill="#f0fdf4" stroke="#bbf7d0" stroke-width="1"/>
+  <text x="130" y="388" font-size="10" fill="#16a34a" font-weight="bold" text-anchor="middle">✓ Agent-NLI Agreement</text>
+  <text x="130" y="408" font-size="9" fill="#1e293b" text-anchor="middle">"The model reaches 93.2% accuracy"</text>
+  <text x="130" y="426" font-size="8" fill="#64748b" text-anchor="middle">Agent: supported</text>
+  <text x="130" y="440" font-size="8" fill="#64748b" text-anchor="middle">NLI: entailment (1.000)</text>
+  <text x="130" y="460" font-size="9" fill="#16a34a" text-anchor="middle">Both agree → high confidence</text>
+
+  <!-- Bad case (illustrative) -->
+  <rect x="250" y="365" width="210" height="115" rx="6" fill="#fef2f2" stroke="#fecaca" stroke-width="1"/>
+  <text x="355" y="388" font-size="10" fill="#dc2626" font-weight="bold" text-anchor="middle">✗ Caught by NLI</text>
+  <text x="355" y="408" font-size="9" fill="#1e293b" text-anchor="middle">"Our method is SOTA"</text>
+  <text x="355" y="426" font-size="8" fill="#64748b" text-anchor="middle">Agent: supported (overconfident)</text>
+  <text x="355" y="440" font-size="8" fill="#dc2626" text-anchor="middle">NLI: neutral (0.52) ⚠</text>
+  <text x="355" y="460" font-size="9" fill="#d97706" text-anchor="middle">Agent overclaimed → flagged</text>
+
+  <!-- Unverifiable case -->
+  <rect x="475" y="365" width="225" height="115" rx="6" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="587" y="388" font-size="10" fill="#64748b" font-weight="bold" text-anchor="middle">— Unverifiable</text>
+  <text x="587" y="408" font-size="9" fill="#1e293b" text-anchor="middle">"Faster than baseline"</text>
+  <text x="587" y="426" font-size="8" fill="#64748b" text-anchor="middle">Agent: insufficient</text>
+  <text x="587" y="440" font-size="8" fill="#64748b" text-anchor="middle">NLI: skipped (no excerpt)</text>
+  <text x="587" y="460" font-size="9" fill="#64748b" text-anchor="middle">Marked [NO_EVIDENCE] honestly</text>
+</svg>
