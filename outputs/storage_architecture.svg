@@ -1,0 +1,185 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="620" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#64748b"/>
+    </marker>
+    <marker id="arrow-green" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#16a34a"/>
+    </marker>
+    <marker id="arrow-blue" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#2563eb"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect x="0" y="0" width="800" height="620" rx="10" fill="#fafbfc"/>
+  <rect x="0" y="0" width="800" height="620" rx="10" fill="none" stroke="#d0d5dd" stroke-width="1.5"/>
+
+  <!-- Title -->
+  <text x="400" y="32" font-size="17" fill="#0f172a" font-weight="bold" text-anchor="middle">
+    Evidence Chain Storage Architecture
+  </text>
+  <text x="400" y="52" font-size="11" fill="#64748b" text-anchor="middle">
+    File-native, Git-versioned, lock-safe — every evidence record is a YAML+Markdown file indexed by INDEX.md
+  </text>
+
+  <!-- ====== SECTION 1: Directory Tree (left) ====== -->
+  <rect x="20" y="68" width="440" height="270" rx="6" fill="#ffffff" stroke="#d0d5dd" stroke-width="1"/>
+  <text x="240" y="92" font-size="12" fill="#2563eb" font-weight="bold" text-anchor="middle">Quest Directory Layout</text>
+
+  <!-- Root -->
+  <text x="40" y="118" font-size="11" fill="#64748b">~/DeepScientist/quests/evidence-demo/</text>
+
+  <!-- Root vertical line -->
+  <line x1="56" y1="126" x2="56" y2="310" stroke="#cbd5e1" stroke-width="1"/>
+
+  <!-- brief.md branch -->
+  <line x1="56" y1="144" x2="86" y2="144" stroke="#cbd5e1" stroke-width="1"/>
+  <text x="92" y="148" font-size="10" fill="#64748b">brief.md</text>
+
+  <!-- quest.yaml branch -->
+  <line x1="56" y1="164" x2="86" y2="164" stroke="#cbd5e1" stroke-width="1"/>
+  <text x="92" y="168" font-size="10" fill="#64748b">quest.yaml</text>
+
+  <!-- artifacts/ branch -->
+  <line x1="56" y1="188" x2="86" y2="188" stroke="#cbd5e1" stroke-width="1"/>
+  <text x="92" y="192" font-size="10" fill="#334155" font-weight="bold">artifacts/</text>
+
+  <!-- artifacts/ vertical line -->
+  <line x1="96" y1="198" x2="96" y2="310" stroke="#cbd5e1" stroke-width="1"/>
+
+  <!-- Other artifact dirs (dimmed, compact) -->
+  <line x1="96" y1="214" x2="126" y2="214" stroke="#cbd5e1" stroke-width="1"/>
+  <text x="132" y="218" font-size="9" fill="#94a3b8">papers/  plots/  experiments/  knowledge/</text>
+
+  <!-- evidence/ branch (highlighted) -->
+  <line x1="96" y1="238" x2="126" y2="238" stroke="#cbd5e1" stroke-width="1"/>
+  <text x="132" y="242" font-size="10" fill="#2563eb" font-weight="bold">evidence/</text>
+  <text x="210" y="242" font-size="8" fill="#64748b">← evidence records live here</text>
+
+  <!-- evidence/ vertical line -->
+  <line x1="136" y1="248" x2="136" y2="310" stroke="#cbd5e1" stroke-width="1"/>
+
+  <!-- INDEX.md -->
+  <line x1="136" y1="264" x2="166" y2="264" stroke="#cbd5e1" stroke-width="1"/>
+  <rect x="172" y="254" width="130" height="18" rx="3" fill="#fef3c7" stroke="#f59e0b" stroke-width="1"/>
+  <text x="237" y="267" font-size="9" fill="#b45309" font-weight="bold" text-anchor="middle">INDEX.md</text>
+  <text x="310" y="267" font-size="8" fill="#64748b">← fcntl-locked index</text>
+
+  <!-- EVD files -->
+  <line x1="136" y1="286" x2="166" y2="286" stroke="#cbd5e1" stroke-width="1"/>
+  <text x="172" y="290" font-size="9" fill="#334155">EVD-0c8841da-001.md</text>
+
+  <line x1="136" y1="304" x2="166" y2="304" stroke="#cbd5e1" stroke-width="1"/>
+  <text x="172" y="308" font-size="9" fill="#94a3b8">...</text>
+
+  <!-- ====== SECTION 1b: EVD File Anatomy (right) ====== -->
+  <rect x="475" y="68" width="305" height="270" rx="6" fill="#ffffff" stroke="#d0d5dd" stroke-width="1"/>
+  <text x="627" y="92" font-size="12" fill="#2563eb" font-weight="bold" text-anchor="middle">EVD File Anatomy</text>
+
+  <!-- YAML frontmatter section -->
+  <rect x="488" y="104" width="280" height="140" rx="4" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="500" y="120" font-size="9" fill="#94a3b8">---  (YAML frontmatter)</text>
+  <text x="500" y="140" font-size="9" fill="#b45309">evidence_id:</text>
+  <text x="590" y="140" font-size="9" fill="#92400e">EVD-0c8841da-001</text>
+  <text x="500" y="158" font-size="9" fill="#b45309">claim:</text>
+  <text x="590" y="158" font-size="9" fill="#334155">"The model reaches 93.2%"</text>
+  <text x="500" y="176" font-size="9" fill="#b45309">evidence_level:</text>
+  <text x="590" y="176" font-size="9" fill="#16a34a">supported</text>
+  <text x="500" y="194" font-size="9" fill="#b45309">source_type:</text>
+  <text x="590" y="194" font-size="9" fill="#334155">experiment_result</text>
+  <text x="500" y="212" font-size="9" fill="#b45309">source_excerpt:</text>
+  <text x="590" y="212" font-size="9" fill="#92400e">"The model reaches..."</text>
+  <text x="500" y="230" font-size="9" fill="#b45309">timestamp:</text>
+  <text x="590" y="230" font-size="9" fill="#334155">2026-06-02T11:30:48</text>
+
+  <!-- Markdown body section -->
+  <rect x="488" y="252" width="280" height="72" rx="4" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="498" y="270" font-size="9" fill="#94a3b8">---  (Markdown body)</text>
+  <text x="498" y="290" font-size="9" fill="#334155">## Source Excerpt</text>
+  <text x="498" y="308" font-size="9" fill="#64748b">&gt; The model reaches 93.2% accuracy.</text>
+
+  <!-- ====== SECTION 2: Write / Read Flows ====== -->
+  <rect x="20" y="352" width="760" height="140" rx="6" fill="#ffffff" stroke="#d0d5dd" stroke-width="1"/>
+  <text x="400" y="376" font-size="12" fill="#2563eb" font-weight="bold" text-anchor="middle">Write &amp; Read Flows</text>
+
+  <!-- Write path -->
+  <text x="50" y="402" font-size="10" fill="#16a34a" font-weight="bold">Write Path (evidence_record)</text>
+
+  <rect x="50" y="412" width="110" height="32" rx="4" fill="#dcfce7" stroke="#86efac" stroke-width="1"/>
+  <text x="105" y="428" font-size="8" fill="#16a34a" text-anchor="middle">Agent calls</text>
+  <text x="105" y="439" font-size="8" fill="#16a34a" text-anchor="middle">evidence_record()</text>
+
+  <line x1="160" y1="428" x2="182" y2="428" stroke="#16a34a" stroke-width="1.5" marker-end="url(#arrow-green)"/>
+
+  <rect x="188" y="412" width="100" height="32" rx="4" fill="#dcfce7" stroke="#86efac" stroke-width="1"/>
+  <text x="238" y="428" font-size="8" fill="#16a34a" text-anchor="middle">validate schema</text>
+  <text x="238" y="439" font-size="8" fill="#16a34a" text-anchor="middle">excerpt required ✓</text>
+
+  <line x1="288" y1="428" x2="310" y2="428" stroke="#16a34a" stroke-width="1.5" marker-end="url(#arrow-green)"/>
+
+  <rect x="316" y="412" width="100" height="32" rx="4" fill="#dcfce7" stroke="#86efac" stroke-width="1"/>
+  <text x="366" y="428" font-size="8" fill="#16a34a" text-anchor="middle">write EVD-*.md</text>
+  <text x="366" y="439" font-size="8" fill="#16a34a" text-anchor="middle">YAML+Markdown</text>
+
+  <line x1="416" y1="428" x2="438" y2="428" stroke="#16a34a" stroke-width="1.5" marker-end="url(#arrow-green)"/>
+
+  <rect x="444" y="412" width="105" height="32" rx="4" fill="#fef3c7" stroke="#f59e0b" stroke-width="1"/>
+  <text x="496" y="428" font-size="8" fill="#b45309" text-anchor="middle">upsert INDEX.md</text>
+  <text x="496" y="439" font-size="8" fill="#b45309" text-anchor="middle">fcntl.LOCK_EX</text>
+
+  <line x1="549" y1="428" x2="571" y2="428" stroke="#16a34a" stroke-width="1.5" marker-end="url(#arrow-green)"/>
+
+  <rect x="577" y="412" width="110" height="32" rx="4" fill="#dcfce7" stroke="#86efac" stroke-width="1"/>
+  <text x="632" y="428" font-size="8" fill="#16a34a" text-anchor="middle">return EVD-id</text>
+  <text x="632" y="439" font-size="8" fill="#16a34a" text-anchor="middle">→ Agent cites it</text>
+
+  <!-- Read path -->
+  <text x="50" y="462" font-size="10" fill="#2563eb" font-weight="bold">Read Path (evidence_list / evidence_get)</text>
+
+  <rect x="50" y="472" width="110" height="32" rx="4" fill="#eff6ff" stroke="#93c5fd" stroke-width="1"/>
+  <text x="105" y="488" font-size="8" fill="#2563eb" text-anchor="middle">Agent calls</text>
+  <text x="105" y="499" font-size="8" fill="#2563eb" text-anchor="middle">evidence_list()</text>
+
+  <line x1="160" y1="488" x2="182" y2="488" stroke="#2563eb" stroke-width="1.5" marker-end="url(#arrow-blue)"/>
+
+  <rect x="188" y="472" width="110" height="32" rx="4" fill="#fef3c7" stroke="#f59e0b" stroke-width="1"/>
+  <text x="243" y="488" font-size="8" fill="#b45309" text-anchor="middle">parse INDEX.md</text>
+  <text x="243" y="499" font-size="8" fill="#b45309" text-anchor="middle">no glob needed</text>
+
+  <line x1="298" y1="488" x2="320" y2="488" stroke="#2563eb" stroke-width="1.5" marker-end="url(#arrow-blue)"/>
+
+  <rect x="326" y="472" width="105" height="32" rx="4" fill="#eff6ff" stroke="#93c5fd" stroke-width="1"/>
+  <text x="378" y="488" font-size="8" fill="#2563eb" text-anchor="middle">filter by level</text>
+  <text x="378" y="499" font-size="8" fill="#2563eb" text-anchor="middle">/ source_type</text>
+
+  <line x1="431" y1="488" x2="453" y2="488" stroke="#2563eb" stroke-width="1.5" marker-end="url(#arrow-blue)"/>
+
+  <rect x="459" y="472" width="130" height="32" rx="4" fill="#eff6ff" stroke="#93c5fd" stroke-width="1"/>
+  <text x="524" y="488" font-size="8" fill="#2563eb" text-anchor="middle">return structured</text>
+  <text x="524" y="499" font-size="8" fill="#2563eb" text-anchor="middle">list / single record</text>
+
+  <!-- ====== SECTION 3: Design Principles ====== -->
+  <rect x="20" y="504" width="760" height="102" rx="6" fill="#ffffff" stroke="#d0d5dd" stroke-width="1"/>
+  <text x="400" y="526" font-size="12" fill="#b45309" font-weight="bold" text-anchor="middle">Design Principles</text>
+
+  <rect x="35" y="538" width="175" height="55" rx="4" fill="#f0fdf4" stroke="#bbf7d0" stroke-width="1"/>
+  <text x="122" y="556" font-size="9" fill="#16a34a" font-weight="bold" text-anchor="middle">1. File-Native</text>
+  <text x="122" y="571" font-size="8" fill="#64748b" text-anchor="middle">No database, no schema migration</text>
+  <text x="122" y="585" font-size="8" fill="#64748b" text-anchor="middle">YAML frontmatter = structured</text>
+
+  <rect x="225" y="538" width="175" height="55" rx="4" fill="#fef3c7" stroke="#fde68a" stroke-width="1"/>
+  <text x="312" y="556" font-size="9" fill="#b45309" font-weight="bold" text-anchor="middle">2. Lock-Safe Concurrent</text>
+  <text x="312" y="571" font-size="8" fill="#64748b" text-anchor="middle">fcntl.LOCK_EX on INDEX.md</text>
+  <text x="312" y="585" font-size="8" fill="#64748b" text-anchor="middle">Atomic read-upsert-write</text>
+
+  <rect x="415" y="538" width="175" height="55" rx="4" fill="#eff6ff" stroke="#93c5fd" stroke-width="1"/>
+  <text x="502" y="556" font-size="9" fill="#2563eb" font-weight="bold" text-anchor="middle">3. Git-Versioned</text>
+  <text x="502" y="571" font-size="8" fill="#64748b" text-anchor="middle">Every evidence change tracked</text>
+  <text x="502" y="585" font-size="8" fill="#64748b" text-anchor="middle">git log = evidence audit trail</text>
+
+  <rect x="605" y="538" width="160" height="55" rx="4" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="685" y="556" font-size="9" fill="#334155" font-weight="bold" text-anchor="middle">4. INDEX.md Fast Path</text>
+  <text x="685" y="571" font-size="8" fill="#64748b" text-anchor="middle">No directory scan</text>
+  <text x="685" y="585" font-size="8" fill="#64748b" text-anchor="middle">O(1) table lookup</text>
+</svg>

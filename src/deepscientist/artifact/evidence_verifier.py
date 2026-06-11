@@ -15,6 +15,7 @@ from .evidence_table import (
     load_evidence_records,
     render_evidence_table_markdown,
 )
+from .source_fetcher import source_fidelity_check
 
 
 EVIDENCE_REF_RE = re.compile(r"\[(EVD-[^\]:\s]+)(?::([a-zA-Z_-]+))?\]")
@@ -894,9 +895,18 @@ def build_report(
     cascade_api: bool = True,
     model_source: str = "modelscope",
     modelscope_model: str | None = None,
+    skip_source_fetch: bool = False,
 ) -> dict[str, Any]:
     records = load_evidence_records(quest_root)
     layer1 = layer1_verify(report_text, records)
+
+    # Source Fidelity Check (between Layer 1 and Layer 2)
+    # Independently fetches source content and verifies that Agent-provided
+    # source_excerpt faithfully appears in the original source.
+    source_fidelity = source_fidelity_check(
+        records, quest_root, skip_fetch=skip_source_fetch
+    )
+
     claim_occurrences = parse_claim_occurrences(report_text)
     if claim_occurrences:
         nli_results = run_occurrence_nli(
@@ -930,6 +940,7 @@ def build_report(
         "quest_root": str(quest_root),
         "evidence_total": len(records),
         "layer1": layer1,
+        "source_fidelity": source_fidelity,
         "layer2": {
             "backend": backend,
             "verification_scope": verification_scope,
@@ -957,9 +968,46 @@ def render_markdown(payload: dict[str, Any]) -> str:
         f"| Final hallucination risk | {metrics['final_hallucination_rate']:.2%} |",
         f"| Citation completeness | {metrics['citation_completeness']:.2%} |",
         "",
+    ]
+    # Source Fidelity section
+    sf = payload.get("source_fidelity", {})
+    if sf and sf.get("results"):
+        lines.extend([
+            "## Source Fidelity",
+            "",
+            "| Evidence ID | Label | Score | Detail |",
+            "|---|---:|---|",
+        ])
+        for item in sf["results"]:
+            detail = ""
+            if item.get("label") == "not_found":
+                detail = "excerpt not found in source"
+            elif item.get("label") == "partial_match":
+                detail = f"partial match ({item.get('score', 0):.2f})"
+            elif item.get("label") == "source_unavailable":
+                detail = item.get("rationale", item.get("error", "source unavailable"))
+            elif item.get("label") == "verified":
+                detail = "excerpt verified in source"
+            else:
+                detail = item.get("rationale", item.get("label", ""))
+            lines.append(
+                "| "
+                + " | ".join(
+                    _md_cell(str(value))
+                    for value in (
+                        item["evidence_id"],
+                        item["label"],
+                        f"{float(item.get('score', 0)):.3f}",
+                        detail,
+                    )
+                )
+                + " |"
+            )
+    lines.extend([
+        "",
         "## Hallucination Detection Table",
         "",
-    ]
+    ])
     lines.extend(_render_claim_level_table(payload, compact=True))
     return "\n".join(lines).rstrip() + "\n"
 
@@ -981,6 +1029,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--publishable-out", type=Path, help="Write a revised report where yellow/red EVD citations are replaced with [NO_EVIDENCE].")
     parser.add_argument("--before-text", default="", help="Optional before/no-evidence draft used for one-turn benchmark output.")
     parser.add_argument("--comparison-out", type=Path, help="Write before table, after table, and annotated after report together.")
+    parser.add_argument("--skip-source-fetch", action="store_true", help="Skip the source content fidelity check (Layer 1.5).")
     args = parser.parse_args(argv)
 
     report_text = args.report.read_text(encoding="utf-8") if args.report else str(args.text or "")
@@ -993,6 +1042,7 @@ def main(argv: list[str] | None = None) -> int:
         cascade_api=args.cascade_api,
         model_source=args.model_source,
         modelscope_model=args.modelscope_model,
+        skip_source_fetch=args.skip_source_fetch,
     )
     if args.json_out:
         args.json_out.parent.mkdir(parents=True, exist_ok=True)
@@ -1195,6 +1245,7 @@ def verify_evidence_integrated(
     artifact_prefix: str = "evidence_verify",
     before_output_text: str = "",
     comparison_mode: bool = False,
+    skip_source_fetch: bool = False,
 ) -> dict[str, Any]:
     """Run the C-part integrated evidence verifier for MCP/tool use."""
     resolved_env_file = Path(env_file) if env_file else None
@@ -1207,6 +1258,7 @@ def verify_evidence_integrated(
         cascade_api=cascade_api,
         model_source=model_source,
         modelscope_model=modelscope_model,
+        skip_source_fetch=skip_source_fetch,
     )
     records = load_evidence_records(quest_root)
     evidence_table = evidence_records_to_json(records) if include_evidence_table else None
@@ -1285,6 +1337,22 @@ def render_user_visible_markdown(payload: dict[str, Any]) -> str:
         )
     for item in layer1.get("retracted_but_cited", []):
         risk_items.append(f"- Retracted evidence cited: `{item.get('evidence_id')}`")
+    # Source fidelity risk items
+    sf = payload.get("source_fidelity", {})
+    for item in (sf.get("results") or [])[:8]:
+        if item.get("label") == "not_found":
+            risk_items.append(
+                f"- Source excerpt NOT FOUND in source: `{item.get('evidence_id')}` "
+                f"(source: {item.get('source_location', 'unknown')})"
+            )
+        elif item.get("label") == "partial_match":
+            risk_items.append(
+                f"- Source excerpt PARTIAL MATCH (score: {item.get('score', 0):.2f}): `{item.get('evidence_id')}` — possible distortion"
+            )
+        elif item.get("label") == "source_unavailable":
+            risk_items.append(
+                f"- Source unavailable: `{item.get('evidence_id')}` ({item.get('rationale', item.get('error', 'unknown'))})"
+            )
     for item in payload["layer2"].get("results", [])[:8]:
         if item.get("verification_status") in {"yellow", "red"}:
             risk_items.append(
@@ -1297,6 +1365,7 @@ def render_user_visible_markdown(payload: dict[str, Any]) -> str:
         f"- {_status_display('green')} / {_status_display('yellow')} / {_status_display('red')}: {metrics['green_supported_count']} / {metrics['yellow_uncertain_count']} / {metrics['red_error_count']}",
         f"- Final hallucination risk: {metrics['final_hallucination_rate']:.2%}",
         f"- Layer 1 verified: {layer1['verified_count']} / {layer1['total_references']}",
+        f"- Source fidelity verified: {sf.get('verified_count', 0)} / {sf.get('total', 0)}" if sf and sf.get("results") else "",
         f"- Citation completeness: {metrics['citation_completeness']:.2%}",
         "",
         "### Risk Items",
