@@ -91,7 +91,7 @@ If DeepScientist materially helps a paper, report, or public research artifact, 
 
 See:
 
-- [README.md](./README.md)
+- [README.md](README_ORIGIN.md)
 - [docs/en/26_CITATION_AND_ATTRIBUTION.md](./docs/en/26_CITATION_AND_ATTRIBUTION.md)
 
 ### 8. Questions and permissions

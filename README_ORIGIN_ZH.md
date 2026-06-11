@@ -5,7 +5,7 @@
 
 <p align="center">
   <a href="https://github.com/ResearAI/DeepScientist">GitHub</a> |
-  <a href="README.md">English README</a> |
+  <a href="README_ORIGIN.md">English README</a> |
   <a href="docs/zh/README.md">中文文档</a> |
   <a href="https://openreview.net/forum?id=cZFgsLq8Gs">论文</a> |
   <a href="https://deepscientist.cc/">官网</a>
